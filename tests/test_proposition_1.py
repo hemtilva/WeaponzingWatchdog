@@ -130,3 +130,4 @@ def test_minimum_active_firms_threshold():
     for rule in [RuleType.MEAN_RATIO, RuleType.MEDIAN_RATIO, RuleType.PRICE_CAP, RuleType.Z_SCORE]:
         flags = evaluate_rules(prices, active, rule, 0.1)
         assert np.all(flags == 0), f"Rule {rule} should not flag when N_active < 3"
+

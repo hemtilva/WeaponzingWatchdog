@@ -70,3 +70,4 @@ def test_consumer_surplus_decreases_with_prices():
     cs_high = compute_consumer_surplus(p_high, qualities, active, 0.0, 0.25, 100.0)
 
     assert cs_low > cs_high
+

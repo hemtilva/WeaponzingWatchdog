@@ -122,3 +122,4 @@ def compute_profits(
     if active_mask is not None:
         profits = np.where(active_mask != 0, profits, 0.0)
     return profits
+

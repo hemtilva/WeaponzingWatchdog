@@ -49,3 +49,4 @@ def test_absorbing_bankruptcy_state():
     bankrupt_mask = get_bankrupt_mask(new_capital)
     assert bankrupt_mask[1] == True
     assert bankrupt_mask[0] == False
+

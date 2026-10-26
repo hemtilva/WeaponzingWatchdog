@@ -117,3 +117,4 @@ NATIVE_LIB = _load_native_library()
 def is_native_available() -> bool:
     """Returns True if the high-performance C++ backend is loaded."""
     return NATIVE_LIB is not None
+

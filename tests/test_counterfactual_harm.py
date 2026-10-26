@@ -73,3 +73,4 @@ def test_harm_not_charged_if_rival_not_audited():
     assert harm[0] == 1
     assert harm[1] == 0
     assert harm[2] == 0
+

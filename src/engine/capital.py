@@ -41,3 +41,4 @@ def update_capital(
 def get_bankrupt_mask(capital: np.ndarray) -> np.ndarray:
     """Returns boolean array indicating bankrupted firms (capital <= 0)."""
     return np.asarray(capital) <= 0.0
+

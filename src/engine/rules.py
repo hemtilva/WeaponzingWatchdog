@@ -167,3 +167,4 @@ def compute_counterfactual_harm(
                     harm[i] += 1
 
     return harm
+
