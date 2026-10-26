@@ -79,6 +79,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 "mean_prices": [float(p) for p in results.mean_prices],
                 "total_fresh_bans": results.total_fresh_bans,
                 "induced_bans": results.induced_bans,
+                "exploit_events": results.exploit_events or [],
                 "trace": results.trace_data or [],
             }
 
@@ -108,3 +109,4 @@ def start_server(port: int = 8000):
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
     start_server(port)
+

@@ -121,3 +121,4 @@ def generate_trace_plot(
 
 if __name__ == "__main__":
     generate_trace_plot()
+

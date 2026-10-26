@@ -55,7 +55,8 @@ class SimulationResults:
     total_fresh_bans: int
     induced_bans: int
     history_prices: Optional[np.ndarray] = None
-    trace_data: Optional[Dict[str, Any]] = None
+    trace_data: Optional[List[Dict[str, Any]]] = None
+    exploit_events: List[Dict[str, Any]] = field(default_factory=list)
 
 
 class MultiAgentTrainer:
@@ -132,6 +133,7 @@ class MultiAgentTrainer:
         eval_start = max(0, self.cfg.total_steps - self.cfg.eval_window)
         trace_start = max(0, self.cfg.total_steps - self.cfg.trace_steps)
         trace_history = [] if self.cfg.record_trace else None
+        trace_exploit_events = []
         eval_prices = []
         eval_profits = []
         eval_cs = []
@@ -303,17 +305,48 @@ class MultiAgentTrainer:
                     ref_p = float(np.mean(chosen_prices))
                     thresh_p = ref_p
 
+                # Detect exploit events in trace
+                step_events = []
+                fresh_banned_indices = np.where(fresh_bans)[0]
+                for j in fresh_banned_indices:
+                    for k in range(self.N):
+                        if k != j and active_mask[k] != 0:
+                            cf_p = chosen_prices.copy()
+                            cf_p[k] = self.nash_prices[k]
+                            cf_flags = evaluate_rules(cf_p, active_mask, self.cfg.rule_type, self.cfg.rule_param)
+                            if cf_flags[j] == 0:
+                                ev = {
+                                    "step": int(step),
+                                    "step_idx": int(len(trace_history)),
+                                    "attacker": int(k),
+                                    "victim": int(j),
+                                    "attacker_price": float(chosen_prices[k]),
+                                    "victim_price": float(chosen_prices[j]),
+                                    "nash_price": float(self.nash_prices[k]),
+                                    "ref_price": float(ref_p),
+                                    "threshold": float(thresh_p),
+                                    "ban_duration": int(self.m_cfg.ban_duration),
+                                    "fixed_cost": float(self.m_cfg.fixed_cost),
+                                }
+                                step_events.append(ev)
+                                trace_exploit_events.append(ev)
+                                break
+
                 trace_history.append({
                     "step": int(step),
                     "prices": [float(p) for p in chosen_prices],
                     "capitals": [float(c) for c in capital],
                     "ban_timers": [int(t) for t in ban_timers],
+                    "next_ban_timers": [int(t) for t in next_timers],
                     "flags": [int(f) for f in flags],
                     "audited": [int(a) for a in audited],
+                    "fresh_bans": [int(b) for b in fresh_bans],
                     "harm": [int(h) for h in harm],
+                    "active_mask": [int(m) for m in active_mask],
                     "active_count": int(num_active),
                     "ref_price": ref_p,
                     "threshold": thresh_p,
+                    "exploit_events": step_events,
                 })
 
             # Transition state
@@ -367,5 +400,6 @@ class MultiAgentTrainer:
             total_fresh_bans=total_fresh_bans,
             induced_bans=induced_bans,
             trace_data=trace_history,
+            exploit_events=trace_exploit_events,
         )
 
