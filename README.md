@@ -151,14 +151,33 @@ where $\mathbf{p}_t^{(i \to N)} = (p_{1,t}, \dots, p_{i-1,t}, p_i^N, p_{i+1,t}, 
 
 ---
 
+## Dual-Backend Architecture & Hardware Portability
+
+The computational pipeline uses a dual-backend architecture designed for maximum performance across heterogeneous platforms:
+
+- **Backend A (C++ / OpenMP Core Engine):**  
+  High-throughput simulation of logit demand, capital depletion, and the $10^6$-state Value Iteration Bellman operator. Written in ISO C++17 with OpenMP multi-threading.
+  - *Windows ARM64 (Qualcomm Snapdragon X Elite):* Compiles directly with native `clang++` (`-O3 -fopenmp`) into an ARM64 `.dll`.
+  - *x64 (Intel / AMD):* Compiles with MSVC, GCC, or Clang into an x64 `.dll` with zero code modifications.
+- **Backend B (Python Orchestration & Optional PyTorch/CUDA):**  
+  Handles policy logic, decaying $\varepsilon$-greedy exploration, batch sweep orchestration (`multiprocessing`), logging, and statistical plotting. On x64 systems equipped with NVIDIA GPUs (such as an RTX 4050), standard PyTorch with CUDA can be installed (`pip install torch`) to accelerate tensor operations and deep RL ablations (DQN/PPO).
+
+---
+
 ## Repository Structure
 
 ```text
 WeaponzingWatchdog/
 ├── Proposal_Report.pdf              # Academic proposal and technical specification
 ├── README.md                        # Technical documentation and mathematical model
+├── agent_guidelines/                # Developer and agent implementation specifications
+│   ├── README.md                    # Guideline index and protocol
+│   ├── 01_theory_and_formulation.md # Game dynamics, Proposition 1, traits, metrics
+│   └── 02_architecture_and_implementation.md # Dual-backend, DP, Q-learning, sweeps
 ├── pyproject.toml
 ├── src/
+│   ├── csrc/
+│   │   └── engine.cpp               # C++ / OpenMP kernel (Bellman updates & market clearing)
 │   ├── engine/
 │   │   ├── market.py                # Logit demand system, choice probabilities, surplus
 │   │   ├── capital.py               # Capital dynamics, fixed costs, bankruptcy handling
@@ -177,6 +196,8 @@ WeaponzingWatchdog/
 │   └── extensions/
 │       ├── learning_regulator.py    # Extension A: Bi-level adaptive regulator
 │       └── demand_shock.py          # Extension B: Non-stationary demand shocks
+├── scripts/
+│   └── build_engine.py              # Cross-platform compiler detector & build script
 ├── experiments/
 │   ├── run_exact_boundary.py        # DP exploit frontier mapping
 │   ├── run_q_sweeps.py              # Multi-seed tabular Q-learning experiments
@@ -189,25 +210,28 @@ WeaponzingWatchdog/
 
 ## Technical Setup & Execution
 
-### Requirements
+### Prerequisites
 - Python 3.10+
-- `numpy >= 1.24.0`
-- `scipy >= 1.10.0`
-- `matplotlib >= 3.7.0`
-- `pandas >= 2.0.0`
-- `pytest >= 7.3.0`
+- C++ Compiler with OpenMP support:
+  - Windows ARM64: `clang++` (MSYS2 ClangARM64)
+  - x64 Windows / Linux: MSVC Build Tools, MinGW GCC, or Clang
+- Python packages: `numpy >= 1.24.0`, `scipy >= 1.10.0`, `matplotlib >= 3.7.0`, `pandas >= 2.0.0`, `pytest >= 7.3.0`
+- Optional (x64 with NVIDIA GPU): `torch` with CUDA 12 for GPU acceleration
 
-### Installation
+### Installation & Native Build
 ```bash
 git clone https://github.com/HemTilva/WeaponzingWatchdog.git
 cd WeaponzingWatchdog
-python -m venv venv
-# Linux / macOS:
-source venv/bin/activate
-# Windows:
-venv\Scripts\activate
 
+# Create and activate virtual environment
+python -m venv venv
+venv\Scripts\activate  # On Linux/macOS: source venv/bin/activate
+
+# Install Python dependencies
 pip install -e .
+
+# Compile native C++ simulation kernel (auto-detects ARM64 / x64 compiler)
+python scripts/build_engine.py
 ```
 
 ### Verification
