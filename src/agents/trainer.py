@@ -37,6 +37,7 @@ class SimulationConfig:
     rule_param: float = 0.20
     agent_traits: Optional[List[AgentTraits]] = None
     eval_window: int = 30_000       # Trailing window for evaluation metrics
+    agent_type: str = "adaptive"    # "adaptive", "honest" (good boy), "random"
     seed: int = 42
 
 
@@ -154,12 +155,21 @@ class MultiAgentTrainer:
 
             for i in range(self.N):
                 if active_mask[i] != 0:
-                    a_idx = self.agents[i].select_action(current_states[i], self.rng)
+                    if self.cfg.agent_type == "honest":
+                        # Ideal good boy: always plays competitive Bertrand-Nash
+                        a_idx = self.indexer.snap_price_to_index(self.nash_prices[i])
+                    elif self.cfg.agent_type == "random":
+                        # Pure random baseline
+                        a_idx = int(self.rng.integers(0, len(self.price_grid)))
+                    else:
+                        # Adaptive Q-learning agent
+                        a_idx = self.agents[i].select_action(current_states[i], self.rng)
+
                     chosen_actions[i] = a_idx
                     chosen_prices[i] = self.price_grid[a_idx]
                 else:
                     # Inactive firms retain previous price
-                    chosen_actions[i] = self.agents[i].indexer.snap_price_to_index(chosen_prices[i])
+                    chosen_actions[i] = self.indexer.snap_price_to_index(chosen_prices[i])
 
             # 3. Market Clearing (Demand & Operating Profits)
             shares = compute_market_shares(
@@ -319,3 +329,4 @@ class MultiAgentTrainer:
             total_fresh_bans=total_fresh_bans,
             induced_bans=induced_bans,
         )
+

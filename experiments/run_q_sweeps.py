@@ -21,7 +21,7 @@ from src.agents.trainer import SimulationConfig, MultiAgentTrainer, SimulationRe
 def run_single_seed(seed: int, rule_type: RuleType, delta: float, t_ban: int,
                     total_steps: int, warmup_steps: int, episode_length: int,
                     k0: float, phi: float, ethics_mu: float, altruism_lambda: float,
-                    alpha_risk: float) -> dict:
+                    alpha_risk: float, agent_type: str = "adaptive") -> dict:
     """Executes a single simulation seed."""
     m_cfg = MarketConfig(
         num_firms=3,
@@ -53,6 +53,7 @@ def run_single_seed(seed: int, rule_type: RuleType, delta: float, t_ban: int,
         rule_param=delta,
         agent_traits=traits,
         eval_window=min(total_steps // 3, 50_000),
+        agent_type=agent_type,
         seed=seed,
     )
 
@@ -62,6 +63,7 @@ def run_single_seed(seed: int, rule_type: RuleType, delta: float, t_ban: int,
     return {
         "seed": seed,
         "rule": rule_type.name,
+        "agent_type": agent_type,
         "delta": delta,
         "T_ban": t_ban,
         "K0_over_Phi": k0 / phi,
@@ -90,7 +92,7 @@ def run_parallel_sweep(args):
 
     print(f"\n==================================================")
     print(f"Launching Multi-Seed Q-Learning Sweep")
-    print(f"Rule: {rule.name} | delta={args.delta} | T_ban={args.t_ban}")
+    print(f"Rule: {rule.name} | delta={args.delta} | T_ban={args.t_ban} | Agent: {args.agent_type}")
     print(f"Steps: {args.steps} (Warmup: {args.warmup}) | Seeds: {args.seeds}")
     print(f"==================================================\n")
 
@@ -107,7 +109,8 @@ def run_parallel_sweep(args):
                 run_single_seed,
                 seed, rule, args.delta, args.t_ban,
                 args.steps, args.warmup, args.episode_length,
-                args.k0, args.phi, args.ethics, args.altruism, args.alpha
+                args.k0, args.phi, args.ethics, args.altruism, args.alpha,
+                args.agent_type
             ): seed for seed in seeds
         }
 
@@ -146,6 +149,7 @@ if __name__ == "__main__":
     parser.add_argument("--episode-length", type=int, default=500)
     parser.add_argument("--seeds", type=int, default=5)
     parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--agent-type", type=str, default="adaptive", choices=["adaptive", "honest", "random"])
     parser.add_argument("--ethics", type=float, default=0.0)
     parser.add_argument("--altruism", type=float, default=0.0)
     parser.add_argument("--alpha", type=float, default=0.0)
@@ -153,3 +157,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run_parallel_sweep(args)
+
