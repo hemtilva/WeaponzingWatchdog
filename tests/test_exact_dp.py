@@ -77,3 +77,4 @@ def test_exploitability_gain_computation():
     # Gain is a finite float
     assert isinstance(gain, float)
     assert not np.isnan(gain)
+

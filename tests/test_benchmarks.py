@@ -96,3 +96,4 @@ def test_collusion_index_bounds():
     assert np.isclose(compute_collusion_index(p_mono, p_nash, p_mono), 1.0)
     # Intermediate profit yields intermediate Delta
     assert np.isclose(compute_collusion_index(0.50, p_nash, p_mono), 0.5)
+

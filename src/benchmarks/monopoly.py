@@ -60,3 +60,4 @@ def compute_collusion_index(
         return 0.0
     delta = (observed_profit - nash_profit) / denom
     return float(delta)
+

@@ -101,3 +101,4 @@ def find_discrete_nash_equilibrium(
     final_shares = compute_market_shares(current_prices, qualities, active, outside_option, sigma_d)
     final_profits = compute_profits(current_prices, costs, final_shares, Q, active)
     return current_prices, final_profits
+
