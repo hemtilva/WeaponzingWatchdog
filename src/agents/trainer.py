@@ -1,0 +1,321 @@
+"""Multi-agent market simulation trainer with episodic resets, warmup, and metrics."""
+
+from dataclasses import dataclass, field
+from typing import List, Tuple, Optional, Dict, Any
+import numpy as np
+
+from src.engine.market import (
+    MarketConfig,
+    compute_market_shares,
+    compute_profits,
+    compute_consumer_surplus,
+)
+from src.engine.capital import update_capital
+from src.engine.rules import (
+    RuleType,
+    evaluate_rules,
+    sample_audit_set,
+    update_ban_timers,
+    compute_counterfactual_harm,
+)
+from src.benchmarks.nash import find_discrete_nash_equilibrium
+from src.benchmarks.monopoly import find_discrete_monopoly_prices, compute_collusion_index
+from .traits import AgentTraits, compute_agent_reward
+from .q_learning import QLearningConfig, StateIndexer, QLearningAgent
+
+
+@dataclass
+class SimulationConfig:
+    """Configuration for multi-agent pricing simulation."""
+    market: MarketConfig = field(default_factory=MarketConfig)
+    q_learning: QLearningConfig = field(default_factory=QLearningConfig)
+    price_grid: Optional[np.ndarray] = None
+    total_steps: int = 200_000
+    episode_length: int = 500       # Approach 1: reset horizon
+    warmup_steps: int = 20_000      # Approach 2: unregulated warmup phase
+    rule_type: RuleType = RuleType.MEAN_RATIO
+    rule_param: float = 0.20
+    agent_traits: Optional[List[AgentTraits]] = None
+    eval_window: int = 30_000       # Trailing window for evaluation metrics
+    seed: int = 42
+
+
+@dataclass
+class SimulationResults:
+    """Evaluation metrics collected post-convergence."""
+    weaponization_rate: float       # W in [0, 1]
+    collusion_index: float          # Delta
+    social_welfare_loss: float      # SWL
+    mean_prices: np.ndarray         # (N,)
+    mean_profits: np.ndarray        # (N,)
+    bankruptcy_rate: float
+    total_fresh_bans: int
+    induced_bans: int
+    history_prices: Optional[np.ndarray] = None
+
+
+class MultiAgentTrainer:
+    """Orchestrates decentralized Q-learning agents in the regulated oligopoly market."""
+
+    def __init__(self, config: SimulationConfig):
+        self.cfg = config
+        self.m_cfg = config.market
+        self.N = self.m_cfg.num_firms
+
+        self.rng = np.random.default_rng(config.seed)
+
+        if config.price_grid is None:
+            # Default M = 11 price levels spanning [cost, monopoly price approx]
+            self.price_grid = np.linspace(
+                self.m_cfg.marginal_costs[0],
+                self.m_cfg.marginal_costs[0] + 6.0 * self.m_cfg.price_sensitivity,
+                11,
+                dtype=np.float64
+            )
+        else:
+            self.price_grid = np.asarray(config.price_grid, dtype=np.float64)
+
+        # Precompute benchmarks
+        self.nash_prices, self.nash_profits = find_discrete_nash_equilibrium(
+            self.price_grid,
+            self.m_cfg.marginal_costs,
+            self.m_cfg.qualities,
+            self.m_cfg.outside_option,
+            self.m_cfg.price_sensitivity,
+            self.m_cfg.market_size,
+        )
+        self.mono_prices, self.mono_profits, _ = find_discrete_monopoly_prices(
+            self.price_grid,
+            self.m_cfg.marginal_costs,
+            self.m_cfg.qualities,
+            self.m_cfg.outside_option,
+            self.m_cfg.price_sensitivity,
+            self.m_cfg.market_size,
+        )
+
+        # Baseline competitive consumer surplus
+        self.nash_cs = compute_consumer_surplus(
+            self.nash_prices,
+            self.m_cfg.qualities,
+            np.ones(self.N, dtype=np.int32),
+            self.m_cfg.outside_option,
+            self.m_cfg.price_sensitivity,
+            self.m_cfg.market_size,
+        )
+
+        # Setup State Indexer & Agents
+        self.indexer = StateIndexer(self.price_grid, fixed_cost=self.m_cfg.fixed_cost)
+        traits_list = config.agent_traits or [AgentTraits() for _ in range(self.N)]
+
+        self.agents = [
+            QLearningAgent(
+                firm_idx=i,
+                config=config.q_learning,
+                indexer=self.indexer,
+                traits=traits_list[i],
+            )
+            for i in range(self.N)
+        ]
+
+    def run(self) -> SimulationResults:
+        """Executes full simulation training and evaluation loop."""
+        # Initial state setup
+        capital = np.full(self.N, self.m_cfg.initial_capital, dtype=np.float64)
+        ban_timers = np.zeros(self.N, dtype=np.int32)
+        lagged_prices = self.nash_prices.copy()
+
+        # Tracking metrics for evaluation window
+        eval_start = max(0, self.cfg.total_steps - self.cfg.eval_window)
+        eval_prices = []
+        eval_profits = []
+        eval_cs = []
+        total_fresh_bans = 0
+        induced_bans = 0
+        bankruptcies_in_eval = 0
+        episode_step = 0
+
+        for step in range(self.cfg.total_steps):
+            is_warmup = step < self.cfg.warmup_steps
+            active_mask = np.array([
+                1 if (ban_timers[i] == 0 and capital[i] > 0.0) else 0
+                for i in range(self.N)
+            ], dtype=np.int32)
+            num_active = int(np.sum(active_mask))
+
+            # 1. State encoding for all agents
+            current_states = [
+                self.agents[i].indexer.encode(lagged_prices, ban_timers > 0, capital[i])
+                for i in range(self.N)
+            ]
+
+            # 2. Simultaneous Action Selection
+            chosen_actions = np.zeros(self.N, dtype=np.int32)
+            chosen_prices = lagged_prices.copy()
+
+            for i in range(self.N):
+                if active_mask[i] != 0:
+                    a_idx = self.agents[i].select_action(current_states[i], self.rng)
+                    chosen_actions[i] = a_idx
+                    chosen_prices[i] = self.price_grid[a_idx]
+                else:
+                    # Inactive firms retain previous price
+                    chosen_actions[i] = self.agents[i].indexer.snap_price_to_index(chosen_prices[i])
+
+            # 3. Market Clearing (Demand & Operating Profits)
+            shares = compute_market_shares(
+                chosen_prices,
+                self.m_cfg.qualities,
+                active_mask,
+                self.m_cfg.outside_option,
+                self.m_cfg.price_sensitivity,
+            )
+            profits = compute_profits(
+                chosen_prices,
+                self.m_cfg.marginal_costs,
+                shares,
+                self.m_cfg.market_size,
+                active_mask,
+            )
+            cs = compute_consumer_surplus(
+                chosen_prices,
+                self.m_cfg.qualities,
+                active_mask,
+                self.m_cfg.outside_option,
+                self.m_cfg.price_sensitivity,
+                self.m_cfg.market_size,
+            )
+
+            # 4. Regulatory Audit & Flagging (Only post-warmup and when N_active >= 3)
+            flags = np.zeros(self.N, dtype=np.int32)
+            audited = np.zeros(self.N, dtype=np.int32)
+            harm = np.zeros(self.N, dtype=np.int32)
+
+            if (not is_warmup) and (num_active >= 3):
+                flags = evaluate_rules(
+                    chosen_prices, active_mask, self.cfg.rule_type, self.cfg.rule_param
+                )
+                audited = sample_audit_set(active_mask, self.m_cfg.audit_budget, self.rng)
+                harm = compute_counterfactual_harm(
+                    chosen_prices, self.nash_prices, active_mask, audited,
+                    self.cfg.rule_type, self.cfg.rule_param
+                )
+
+            # Detect fresh bans for evaluation metric
+            fresh_bans = (audited != 0) & (flags != 0) & (ban_timers == 0)
+
+            # Update ban timers
+            next_timers = update_ban_timers(
+                ban_timers, flags, audited, self.m_cfg.ban_duration
+            )
+
+            # 5. Capital & Bankruptcy Dynamics
+            next_capital = update_capital(capital, profits, self.m_cfg.fixed_cost)
+
+            # 6. Reward Calculation & Q-Learning Updates
+            for i in range(self.N):
+                other_p_sum = float(np.sum(profits) - profits[i])
+                reward_i = compute_agent_reward(
+                    profit=profits[i],
+                    Q=self.m_cfg.market_size,
+                    CS=cs,
+                    other_profits_sum=other_p_sum,
+                    N=self.N,
+                    harm_count=harm[i],
+                    traits=self.agents[i].traits,
+                )
+
+                # Next state observation
+                next_state_i = self.agents[i].indexer.encode(
+                    chosen_prices, next_timers > 0, next_capital[i]
+                )
+                is_bankrupt = next_capital[i] <= 0.0
+
+                if active_mask[i] != 0:
+                    self.agents[i].update(
+                        current_states[i],
+                        chosen_actions[i],
+                        reward_i,
+                        next_state_i,
+                        done=is_bankrupt,
+                    )
+                self.agents[i].decay_epsilon()
+
+            # Record stats if in evaluation window
+            if step >= eval_start:
+                eval_prices.append(chosen_prices.copy())
+                eval_profits.append(profits.copy())
+                eval_cs.append(cs)
+
+                new_ban_indices = np.where(fresh_bans)[0]
+                for j in new_ban_indices:
+                    total_fresh_bans += 1
+                    # Counterfactual check: did any rival's deviation cause j's ban?
+                    # i.e., sum of harm caused by rivals to firm j
+                    is_induced = False
+                    for k in range(self.N):
+                        if k != j and active_mask[k] != 0:
+                            cf_p = chosen_prices.copy()
+                            cf_p[k] = self.nash_prices[k]
+                            cf_flags = evaluate_rules(cf_p, active_mask, self.cfg.rule_type, self.cfg.rule_param)
+                            if cf_flags[j] == 0:
+                                is_induced = True
+                                break
+                    if is_induced:
+                        induced_bans += 1
+
+                # Check fresh bankruptcies
+                for i in range(self.N):
+                    if capital[i] > 0.0 and next_capital[i] <= 0.0:
+                        bankruptcies_in_eval += 1
+
+            # Transition state
+            capital = next_capital
+            ban_timers = next_timers
+            lagged_prices = chosen_prices
+            episode_step += 1
+
+            # Approach 1: Episode Reset condition
+            active_next = np.sum([1 if (ban_timers[i] == 0 and capital[i] > 0.0) else 0 for i in range(self.N)])
+            if episode_step >= self.cfg.episode_length or active_next <= 1:
+                # Reset market for new episode while preserving Q-tables!
+                capital = np.full(self.N, self.m_cfg.initial_capital, dtype=np.float64)
+                ban_timers = np.zeros(self.N, dtype=np.int32)
+                lagged_prices = self.nash_prices.copy()
+                episode_step = 0
+
+        # Compute aggregate evaluation metrics
+        eval_p_arr = np.array(eval_prices)
+        eval_pi_arr = np.array(eval_profits)
+        mean_p = np.mean(eval_p_arr, axis=0)
+        mean_pi = np.mean(eval_pi_arr, axis=0)
+
+        # Collusion Index
+        avg_per_firm_profit = float(np.mean(mean_pi))
+        nash_per_firm_profit = float(np.mean(self.nash_profits))
+        mono_per_firm_profit = float(np.mean(self.mono_profits))
+        delta = compute_collusion_index(
+            avg_per_firm_profit, nash_per_firm_profit, mono_per_firm_profit
+        )
+
+        # Weaponization Rate
+        w_rate = (induced_bans / total_fresh_bans) if total_fresh_bans > 0 else 0.0
+
+        # Social Welfare Loss (SWL)
+        mean_cs = float(np.mean(eval_cs))
+        total_realized_welfare = mean_cs + float(np.sum(mean_pi))
+        nash_welfare = self.nash_cs + float(np.sum(self.nash_profits))
+        swl = 1.0 - (total_realized_welfare / nash_welfare) if nash_welfare > 0 else 0.0
+
+        num_episodes_in_eval = max(1, self.cfg.eval_window // self.cfg.episode_length)
+        b_rate = bankruptcies_in_eval / (self.N * num_episodes_in_eval)
+
+        return SimulationResults(
+            weaponization_rate=float(w_rate),
+            collusion_index=float(delta),
+            social_welfare_loss=float(swl),
+            mean_prices=mean_p,
+            mean_profits=mean_pi,
+            bankruptcy_rate=float(min(1.0, b_rate)),
+            total_fresh_bans=total_fresh_bans,
+            induced_bans=induced_bans,
+        )
