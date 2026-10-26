@@ -105,6 +105,31 @@ def _load_native_library() -> Optional[ctypes.CDLL]:
         ]
         dll.evaluate_counterfactual_harm.restype = None
 
+        # 7. solve_value_iteration_c
+        dll.solve_value_iteration_c.argtypes = [
+            ctypes.POINTER(ctypes.c_double),  # price_grid
+            ctypes.c_int,                     # num_prices
+            ctypes.POINTER(ctypes.c_double),  # capital_grid
+            ctypes.c_int,                     # num_caps
+            ctypes.c_int,                     # T_ban
+            ctypes.POINTER(ctypes.c_double),  # costs
+            ctypes.POINTER(ctypes.c_double),  # qualities
+            ctypes.c_double,                  # outside_option
+            ctypes.c_double,                  # sigma_d
+            ctypes.c_double,                  # market_size
+            ctypes.c_double,                  # fixed_cost
+            ctypes.c_int,                     # rule_type
+            ctypes.c_double,                  # rule_param
+            ctypes.POINTER(ctypes.c_double),  # nash_prices
+            ctypes.c_double,                  # gamma
+            ctypes.c_double,                  # tol
+            ctypes.c_int,                     # max_iter
+            ctypes.c_double,                  # mu_ethics
+            ctypes.POINTER(ctypes.c_double),  # out_V
+            ctypes.POINTER(ctypes.c_int),     # out_policy
+        ]
+        dll.solve_value_iteration_c.restype = None
+
         return dll
     except Exception as e:
         print(f"Warning: Failed to load native engine library: {e}")

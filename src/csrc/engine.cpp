@@ -4,6 +4,7 @@
 #include <numeric>
 #include <cstring>
 #include <iostream>
+#include <omp.h>
 
 #if defined(_WIN32) || defined(__CYGWIN__)
   #define EXPORT_API extern "C" __declspec(dllexport)
@@ -265,5 +266,202 @@ EXPORT_API void evaluate_counterfactual_harm(
         // Restore original price
         cf_prices[i] = orig_p;
     }
+}
+
+inline int snap_capital_idx(double cap, const double* capital_grid, int num_caps) {
+    if (cap <= 0.0) return 0;
+    int best_idx = 0;
+    double best_diff = std::abs(capital_grid[0] - cap);
+    for (int i = 1; i < num_caps; ++i) {
+        double diff = std::abs(capital_grid[i] - cap);
+        if (diff < best_diff) {
+            best_diff = diff;
+            best_idx = i;
+        }
+    }
+    return best_idx;
+}
+
+inline int get_state_idx(int t1, int t2, int t3, int k1, int k2, int k3, int ST, int SK) {
+    return (((((t1 * ST + t2) * ST + t3) * SK + k1) * SK + k2) * SK + k3);
+}
+
+EXPORT_API void solve_value_iteration_c(
+    const double* price_grid, int num_prices,
+    const double* capital_grid, int num_caps,
+    int T_ban,
+    const double* costs, const double* qualities,
+    double outside_option, double sigma_d, double market_size,
+    double fixed_cost, int rule_type, double rule_param,
+    const double* nash_prices,
+    double gamma, double tol, int max_iter,
+    double mu_ethics,
+    double* out_V, int* out_policy
+) {
+    int ST = T_ban + 1;
+    int SK = num_caps;
+    int total_states = ST * ST * ST * SK * SK * SK;
+
+    std::vector<double> V(total_states, 0.0);
+    std::vector<double> V_next(total_states, 0.0);
+    std::vector<int> policy(total_states, 0);
+
+    for (int it = 0; it < max_iter; ++it) {
+        double max_delta = 0.0;
+
+        #pragma omp parallel for schedule(dynamic, 64) reduction(max:max_delta)
+        for (int idx = 0; idx < total_states; ++idx) {
+            int rem = idx;
+            int k3 = rem % SK; rem /= SK;
+            int k2 = rem % SK; rem /= SK;
+            int k1 = rem % SK; rem /= SK;
+            int t3 = rem % ST; rem /= ST;
+            int t2 = rem % ST; rem /= ST;
+            int t1 = rem % ST;
+
+            // Absorbing bankruptcy for firm 1
+            if (k1 == 0) {
+                V_next[idx] = 0.0;
+                continue;
+            }
+
+            int timers[3] = {t1, t2, t3};
+            double cap[3] = {capital_grid[k1], capital_grid[k2], capital_grid[k3]};
+            int active_mask[3] = {
+                (t1 == 0 && k1 > 0) ? 1 : 0,
+                (t2 == 0 && k2 > 0) ? 1 : 0,
+                (t3 == 0 && k3 > 0) ? 1 : 0
+            };
+
+            int n_act = active_mask[0] + active_mask[1] + active_mask[2];
+
+            if (active_mask[0] == 0) {
+                // Firm 1 is suspended/banned: only one transition
+                double p_joint[3] = {nash_prices[0], nash_prices[1], nash_prices[2]};
+                double shares[3] = {0.0, 0.0, 0.0};
+                compute_logit_shares(p_joint, qualities, active_mask, 3, outside_option, sigma_d, shares);
+
+                double profits[3] = {
+                    (active_mask[0] != 0) ? market_size * (p_joint[0] - costs[0]) * shares[0] : 0.0,
+                    (active_mask[1] != 0) ? market_size * (p_joint[1] - costs[1]) * shares[1] : 0.0,
+                    (active_mask[2] != 0) ? market_size * (p_joint[2] - costs[2]) * shares[2] : 0.0,
+                };
+
+                double next_cap[3];
+                update_capital(cap, profits, 3, fixed_cost, next_cap);
+                int nk1 = snap_capital_idx(next_cap[0], capital_grid, SK);
+                int nk2 = snap_capital_idx(next_cap[1], capital_grid, SK);
+                int nk3 = snap_capital_idx(next_cap[2], capital_grid, SK);
+
+                double exp_next_v = 0.0;
+                if (n_act >= 3) {
+                    int flags[3] = {0, 0, 0};
+                    evaluate_rules(p_joint, active_mask, 3, rule_type, rule_param, flags);
+
+                    std::vector<int> act_idxs;
+                    for (int i = 0; i < 3; ++i) if (active_mask[i]) act_idxs.push_back(i);
+
+                    double prob = 1.0 / n_act;
+                    for (int audited_firm : act_idxs) {
+                        int nt1 = (audited_firm == 0 && flags[0]) ? T_ban : std::max(0, t1 - 1);
+                        int nt2 = (audited_firm == 1 && flags[1]) ? T_ban : std::max(0, t2 - 1);
+                        int nt3 = (audited_firm == 2 && flags[2]) ? T_ban : std::max(0, t3 - 1);
+
+                        int next_s = get_state_idx(nt1, nt2, nt3, nk1, nk2, nk3, ST, SK);
+                        exp_next_v += prob * V[next_s];
+                    }
+                } else {
+                    int nt1 = std::max(0, t1 - 1);
+                    int nt2 = std::max(0, t2 - 1);
+                    int nt3 = std::max(0, t3 - 1);
+                    int next_s = get_state_idx(nt1, nt2, nt3, nk1, nk2, nk3, ST, SK);
+                    exp_next_v = V[next_s];
+                }
+
+                double new_v = gamma * exp_next_v;
+                V_next[idx] = new_v;
+                double diff = std::abs(new_v - V[idx]);
+                if (diff > max_delta) max_delta = diff;
+            } else {
+                // Firm 1 is active! Maximize over price_grid
+                double best_q = -1e18;
+                int best_act = 0;
+
+                for (int a = 0; a < num_prices; ++a) {
+                    double p1 = price_grid[a];
+                    double p_joint[3] = {p1, nash_prices[1], nash_prices[2]};
+                    double shares[3] = {0.0, 0.0, 0.0};
+                    compute_logit_shares(p_joint, qualities, active_mask, 3, outside_option, sigma_d, shares);
+
+                    double profits[3] = {
+                        (active_mask[0] != 0) ? market_size * (p_joint[0] - costs[0]) * shares[0] : 0.0,
+                        (active_mask[1] != 0) ? market_size * (p_joint[1] - costs[1]) * shares[1] : 0.0,
+                        (active_mask[2] != 0) ? market_size * (p_joint[2] - costs[2]) * shares[2] : 0.0,
+                    };
+
+                    double next_cap[3];
+                    update_capital(cap, profits, 3, fixed_cost, next_cap);
+                    int nk1 = snap_capital_idx(next_cap[0], capital_grid, SK);
+                    int nk2 = snap_capital_idx(next_cap[1], capital_grid, SK);
+                    int nk3 = snap_capital_idx(next_cap[2], capital_grid, SK);
+
+                    double r1 = profits[0] / market_size;
+
+                    double exp_next_v = 0.0;
+                    if (n_act >= 3) {
+                        int flags[3] = {0, 0, 0};
+                        evaluate_rules(p_joint, active_mask, 3, rule_type, rule_param, flags);
+
+                        std::vector<int> act_idxs;
+                        for (int i = 0; i < 3; ++i) if (active_mask[i]) act_idxs.push_back(i);
+
+                        double prob = 1.0 / n_act;
+                        for (int audited_firm : act_idxs) {
+                            int audited[3] = { (audited_firm == 0) ? 1 : 0, (audited_firm == 1) ? 1 : 0, (audited_firm == 2) ? 1 : 0 };
+
+                            double harm_pen = 0.0;
+                            if (mu_ethics > 0.0) {
+                                int harm[3] = {0, 0, 0};
+                                evaluate_counterfactual_harm(p_joint, nash_prices, active_mask, audited, 3, rule_type, rule_param, harm);
+                                harm_pen = mu_ethics * harm[0];
+                            }
+
+                            int nt1 = (audited_firm == 0 && flags[0]) ? T_ban : std::max(0, t1 - 1);
+                            int nt2 = (audited_firm == 1 && flags[1]) ? T_ban : std::max(0, t2 - 1);
+                            int nt3 = (audited_firm == 2 && flags[2]) ? T_ban : std::max(0, t3 - 1);
+
+                            int next_s = get_state_idx(nt1, nt2, nt3, nk1, nk2, nk3, ST, SK);
+                            exp_next_v += prob * (V[next_s] - harm_pen);
+                        }
+                    } else {
+                        int nt1 = std::max(0, t1 - 1);
+                        int nt2 = std::max(0, t2 - 1);
+                        int nt3 = std::max(0, t3 - 1);
+                        int next_s = get_state_idx(nt1, nt2, nt3, nk1, nk2, nk3, ST, SK);
+                        exp_next_v = V[next_s];
+                    }
+
+                    double q_val = r1 + gamma * exp_next_v;
+                    if (q_val > best_q) {
+                        best_q = q_val;
+                        best_act = a;
+                    }
+                }
+
+                V_next[idx] = best_q;
+                policy[idx] = best_act;
+                double diff = std::abs(best_q - V[idx]);
+                if (diff > max_delta) max_delta = diff;
+            }
+        }
+
+        V = V_next;
+        if (max_delta < tol) {
+            break;
+        }
+    }
+
+    std::copy(V.begin(), V.end(), out_V);
+    std::copy(policy.begin(), policy.end(), out_policy);
 }
 
