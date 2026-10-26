@@ -38,6 +38,8 @@ class SimulationConfig:
     agent_traits: Optional[List[AgentTraits]] = None
     eval_window: int = 30_000       # Trailing window for evaluation metrics
     agent_type: str = "adaptive"    # "adaptive", "honest" (good boy), "random"
+    record_trace: bool = False      # Whether to collect per-step timeline trace
+    trace_steps: int = 200          # Number of steps to record for visualization
     seed: int = 42
 
 
@@ -53,6 +55,7 @@ class SimulationResults:
     total_fresh_bans: int
     induced_bans: int
     history_prices: Optional[np.ndarray] = None
+    trace_data: Optional[Dict[str, Any]] = None
 
 
 class MultiAgentTrainer:
@@ -127,6 +130,8 @@ class MultiAgentTrainer:
 
         # Tracking metrics for evaluation window
         eval_start = max(0, self.cfg.total_steps - self.cfg.eval_window)
+        trace_start = max(0, self.cfg.total_steps - self.cfg.trace_steps)
+        trace_history = [] if self.cfg.record_trace else None
         eval_prices = []
         eval_profits = []
         eval_cs = []
@@ -278,6 +283,39 @@ class MultiAgentTrainer:
                     if capital[i] > 0.0 and next_capital[i] <= 0.0:
                         bankruptcies_in_eval += 1
 
+            # Record per-step timeline trace if requested
+            if self.cfg.record_trace and step >= trace_start:
+                # Reference price and threshold
+                if num_active >= 3:
+                    if self.cfg.rule_type == RuleType.MEAN_RATIO:
+                        ref_p = float(np.mean(chosen_prices[active_mask != 0]))
+                        thresh_p = float((1.0 + self.cfg.rule_param) * ref_p)
+                    elif self.cfg.rule_type == RuleType.MEDIAN_RATIO:
+                        ref_p = float(np.median(chosen_prices[active_mask != 0]))
+                        thresh_p = float((1.0 + self.cfg.rule_param) * ref_p)
+                    elif self.cfg.rule_type == RuleType.PRICE_CAP:
+                        ref_p = float(self.cfg.rule_param)
+                        thresh_p = float(self.cfg.rule_param)
+                    else:
+                        ref_p = float(np.mean(chosen_prices[active_mask != 0]))
+                        thresh_p = ref_p + float(self.cfg.rule_param * np.std(chosen_prices[active_mask != 0]))
+                else:
+                    ref_p = float(np.mean(chosen_prices))
+                    thresh_p = ref_p
+
+                trace_history.append({
+                    "step": int(step),
+                    "prices": [float(p) for p in chosen_prices],
+                    "capitals": [float(c) for c in capital],
+                    "ban_timers": [int(t) for t in ban_timers],
+                    "flags": [int(f) for f in flags],
+                    "audited": [int(a) for a in audited],
+                    "harm": [int(h) for h in harm],
+                    "active_count": int(num_active),
+                    "ref_price": ref_p,
+                    "threshold": thresh_p,
+                })
+
             # Transition state
             capital = next_capital
             ban_timers = next_timers
@@ -328,5 +366,6 @@ class MultiAgentTrainer:
             bankruptcy_rate=float(min(1.0, b_rate)),
             total_fresh_bans=total_fresh_bans,
             induced_bans=induced_bans,
+            trace_data=trace_history,
         )
 

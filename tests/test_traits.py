@@ -60,3 +60,4 @@ def test_compute_agent_reward_altruism():
     # External surplus = (3.0 + 3.0) / (3 * 1.0) = 2.0
     # Difference should be lambda * W_ext = 0.5 * 2.0 = 1.0
     assert np.isclose(r_altruist - r_selfish, 1.0)
+

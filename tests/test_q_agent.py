@@ -86,3 +86,4 @@ def test_epsilon_decay():
     for _ in range(50):
         agent.decay_epsilon()
     assert agent.epsilon == 0.1  # Bounded below by eps_min
+

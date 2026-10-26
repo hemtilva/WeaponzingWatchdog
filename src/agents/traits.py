@@ -54,3 +54,4 @@ def compute_agent_reward(
     # Total reward
     reward = u_monetary + traits.lambda_altruism * w_ext - harm_penalty
     return float(reward)
+

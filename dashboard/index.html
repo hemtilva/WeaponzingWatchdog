@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weaponizing the Watchdog | Interactive Simulation Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --panel-bg: #1e293b;
+            --border-color: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-blue: #38bdf8;
+            --accent-red: #f43f5e;
+            --accent-green: #10b981;
+            --accent-purple: #a855f7;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 320px;
+            background-color: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            overflow-y: auto;
+        }
+
+        .sidebar h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--accent-blue);
+            letter-spacing: -0.5px;
+        }
+
+        .sidebar p.desc {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .control-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .control-group select, .control-group input[type="range"] {
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .btn-run {
+            background: linear-gradient(135deg, #0284c7, #2563eb);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+            margin-top: 10px;
+        }
+
+        .btn-run:hover {
+            opacity: 0.92;
+            transform: translateY(-1px);
+        }
+
+        .btn-run:disabled {
+            background: #475569;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Main Content */
+        .main {
+            flex: 1;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .header .status {
+            font-size: 13px;
+            color: var(--accent-green);
+            background: rgba(16, 185, 129, 0.1);
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        /* KPI Cards */
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+
+        .kpi-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .kpi-card .title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .kpi-card .value {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .kpi-card .subtitle {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* Charts */
+        .chart-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .chart-card h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 200px;
+            width: 100%;
+        }
+
+        .chart-container-large {
+            height: 280px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Controls -->
+    <div class="sidebar">
+        <div>
+            <h2>Market Watchdog</h2>
+            <p class="desc">Interactive Multi-Agent Pricing & Regulatory Exploitation Simulator</p>
+        </div>
+
+        <div class="control-group">
+            <label>Regulatory Rule</label>
+            <select id="ruleSelect">
+                <option value="mean" selected>Mean-Ratio Rule (Vulnerable)</option>
+                <option value="median">Median-Ratio Rule (Robust)</option>
+                <option value="cap">Absolute Price Cap (Immune)</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>Agent Cohort Behavior</label>
+            <select id="agentSelect">
+                <option value="adaptive" selected>Adaptive Q-Learners (RL)</option>
+                <option value="honest">Ideal Good Boys (Nash Pricing)</option>
+                <option value="random">Pure Random Noise</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>Threshold Allowance (&delta;) <span id="deltaVal">0.20</span></label>
+            <input type="range" id="deltaSlider" min="0.05" max="0.40" step="0.05" value="0.20">
+        </div>
+
+        <div class="control-group">
+            <label>Ban Duration (T_ban) <span id="tbanVal">3 periods</span></label>
+            <input type="range" id="tbanSlider" min="1" max="5" step="1" value="3">
+        </div>
+
+        <div class="control-group">
+            <label>Initial Capital Buffer (K0) <span id="k0Val">1.0</span></label>
+            <input type="range" id="k0Slider" min="0.5" max="3.0" step="0.5" value="1.0">
+        </div>
+
+        <div class="control-group">
+            <label>Training Steps</label>
+            <select id="stepsSelect">
+                <option value="15000">15,000 steps (Fastest, ~1s)</option>
+                <option value="30000" selected>30,000 steps (Balanced, ~2s)</option>
+                <option value="60000">60,000 steps (Deep convergence)</option>
+            </select>
+        </div>
+
+        <button class="btn-run" id="runBtn" onclick="executeSimulation()">Run Simulation</button>
+    </div>
+
+    <!-- Main Dashboard Area -->
+    <div class="main">
+        <div class="header">
+            <div>
+                <h1>Real-Time Timeline & Exploit Dynamics</h1>
+            </div>
+            <div class="status" id="statusBadge">Engine Ready (C++ OpenMP)</div>
+        </div>
+
+        <!-- Metric KPI Cards -->
+        <div class="kpi-row">
+            <div class="kpi-card">
+                <div class="title">Weaponization Rate (W)</div>
+                <div class="value" id="kpiW" style="color: var(--accent-red)">0.0%</div>
+                <div class="subtitle" id="subW">Bans causally induced by rivals</div>
+            </div>
+            <div class="kpi-card">
+                <div class="title">Collusion Index (&Delta;)</div>
+                <div class="value" id="kpiDelta" style="color: var(--accent-blue)">0.00</div>
+                <div class="subtitle">0 = Nash, 1 = Full Cartel</div>
+            </div>
+            <div class="kpi-card">
+                <div class="title">Social Welfare Loss</div>
+                <div class="value" id="kpiSWL" style="color: var(--accent-purple)">0.0%</div>
+                <div class="subtitle">Total consumer + producer loss</div>
+            </div>
+            <div class="kpi-card">
+                <div class="title">Bankruptcy Rate</div>
+                <div class="value" id="kpiBankrupt" style="color: #fbbf24">0.0%</div>
+                <div class="subtitle">Permanent competitor liquidations</div>
+            </div>
+        </div>
+
+        <!-- Chart 1: Price Timeline -->
+        <div class="chart-card">
+            <h3>Price Timeline: Predatory Undercutting & Regulatory Thresholds</h3>
+            <div class="chart-container chart-container-large">
+                <canvas id="priceChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Chart 2 & 3: Capital and Active Count -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="chart-card">
+                <h3>Capital Reserves (Drain During Suspensions)</h3>
+                <div class="chart-container">
+                    <canvas id="capitalChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3>Active Sellers in Market (N_act)</h3>
+                <div class="chart-container">
+                    <canvas id="activeChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Update slider labels
+        document.getElementById('deltaSlider').oninput = e => document.getElementById('deltaVal').innerText = parseFloat(e.target.value).toFixed(2);
+        document.getElementById('tbanSlider').oninput = e => document.getElementById('tbanVal').innerText = `${e.target.value} periods`;
+        document.getElementById('k0Slider').oninput = e => document.getElementById('k0Val').innerText = parseFloat(e.target.value).toFixed(1);
+
+        let priceChart = null;
+        let capitalChart = null;
+        let activeChart = null;
+
+        async function executeSimulation() {
+            const btn = document.getElementById('runBtn');
+            const status = document.getElementById('statusBadge');
+            btn.disabled = true;
+            btn.innerText = "Simulating...";
+            status.innerText = "Running C++ Engine...";
+            status.style.color = "var(--accent-blue)";
+
+            const payload = {
+                rule: document.getElementById('ruleSelect').value,
+                agent_type: document.getElementById('agentSelect').value,
+                delta: parseFloat(document.getElementById('deltaSlider').value),
+                t_ban: parseInt(document.getElementById('tbanSlider').value),
+                k0: parseFloat(document.getElementById('k0Slider').value),
+                steps: parseInt(document.getElementById('stepsSelect').value),
+                warmup: 5000,
+                seed: Math.floor(Math.random() * 10000)
+            };
+
+            try {
+                const res = await fetch('/api/simulate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+
+                // Update KPIs
+                document.getElementById('kpiW').innerText = `${(data.weaponization_rate * 100).toFixed(1)}%`;
+                document.getElementById('kpiDelta').innerText = (data.collusion_index >= 0 ? "+" : "") + data.collusion_index.toFixed(3);
+                document.getElementById('kpiSWL').innerText = `${(data.social_welfare_loss * 100).toFixed(1)}%`;
+                document.getElementById('kpiBankrupt').innerText = `${(data.bankruptcy_rate * 100).toFixed(1)}%`;
+
+                renderCharts(data.trace);
+                status.innerText = "Simulation Complete";
+                status.style.color = "var(--accent-green)";
+            } catch (err) {
+                console.error(err);
+                status.innerText = "Simulation Error";
+                status.style.color = "var(--accent-red)";
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Run Simulation";
+            }
+        }
+
+        function renderCharts(trace) {
+            if (!trace || trace.length === 0) return;
+
+            const labels = trace.map(r => r.step - trace[0].step);
+            const p0 = trace.map(r => r.prices[0]);
+            const p1 = trace.map(r => r.prices[1]);
+            const p2 = trace.map(r => r.prices[2]);
+            const refP = trace.map(r => r.ref_price);
+            const threshP = trace.map(r => r.threshold);
+
+            const k0 = trace.map(r => r.capitals[0]);
+            const k1 = trace.map(r => r.capitals[1]);
+            const k2 = trace.map(r => r.capitals[2]);
+
+            const nAct = trace.map(r => r.active_count);
+
+            // 1. Price Chart
+            if (priceChart) priceChart.destroy();
+            priceChart = new Chart(document.getElementById('priceChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Seller 0 (Attacker)', data: p0, borderColor: '#38bdf8', borderWidth: 2, pointRadius: 0 },
+                        { label: 'Seller 1 (Rival)', data: p1, borderColor: '#fb923c', borderWidth: 2, pointRadius: 0 },
+                        { label: 'Seller 2 (Rival)', data: p2, borderColor: '#4ade80', borderWidth: 2, pointRadius: 0 },
+                        { label: 'Reference Price', data: refP, borderColor: '#94a3b8', borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0 },
+                        { label: 'Watchdog Flag Ceiling', data: threshP, borderColor: '#f43f5e', borderDash: [2, 2], borderWidth: 1.5, pointRadius: 0 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                        y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' }, title: { display: true, text: 'Price', color: '#94a3b8' } }
+                    },
+                    plugins: { legend: { labels: { color: '#f8fafc', font: { size: 11 } } } }
+                }
+            });
+
+            // 2. Capital Chart
+            if (capitalChart) capitalChart.destroy();
+            capitalChart = new Chart(document.getElementById('capitalChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Seller 0 Capital', data: k0, borderColor: '#38bdf8', borderWidth: 1.5, pointRadius: 0 },
+                        { label: 'Seller 1 Capital', data: k1, borderColor: '#fb923c', borderWidth: 1.5, pointRadius: 0 },
+                        { label: 'Seller 2 Capital', data: k2, borderColor: '#4ade80', borderWidth: 1.5, pointRadius: 0 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                        y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' }, title: { display: true, text: 'Capital', color: '#94a3b8' } }
+                    },
+                    plugins: { legend: { labels: { color: '#f8fafc', font: { size: 10 } } } }
+                }
+            });
+
+            // 3. Active Sellers Chart
+            if (activeChart) activeChart.destroy();
+            activeChart = new Chart(document.getElementById('activeChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Active Sellers', data: nAct, borderColor: '#a855f7', backgroundColor: 'rgba(168, 85, 247, 0.1)', fill: true, stepped: true, borderWidth: 2, pointRadius: 0 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                        y: { min: 0.5, max: 3.5, grid: { color: '#334155' }, ticks: { stepSize: 1, color: '#94a3b8' }, title: { display: true, text: 'Active Firms', color: '#94a3b8' } }
+                    },
+                    plugins: { legend: { labels: { color: '#f8fafc', font: { size: 10 } } } }
+                }
+            });
+        }
+
+        // Execute on load
+        window.onload = executeSimulation;
+    </script>
+</body>
+</html>

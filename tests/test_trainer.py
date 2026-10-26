@@ -66,3 +66,4 @@ def test_warmup_suppresses_early_bans():
 
     assert results.total_fresh_bans == 0
     assert results.weaponization_rate == 0.0
+
