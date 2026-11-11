@@ -8,10 +8,16 @@ Each run:
   1. train   : epsilon-greedy, exploration decays to eps_min at `--explore-frac` of training
   2. greedy  : all learners frozen and greedy; this is the measured outcome
 
+N_min is the watchdog's minimum number of active firms. With N_min = 3 a market
+reduced to two firms is unregulated, which learners exploit by letting the audit remove
+a firm (self-inflicted bankruptcy) and then colluding. N_min = 2 closes that loophole and
+isolates the reference-rule question (H1).
+
 Reported per configuration (mean +- std over seeds), greedy phase:
-  kills/ep      rival bankruptcies caused by an induced ban, per episode (all firms)
-  framed eps    fraction of seeds whose greedy play kills at least 0.5 rivals per episode
-  W             share of bans induced by a rival's deviation
+  kills/ep      rival bankruptcies caused by an induced ban (incl. coalition framing), per episode
+  framed        seeds whose greedy play kills at least 0.5 rivals per episode
+  self/ep       bankruptcies NOT caused by rivals (e.g. market reduction), per episode
+  W, W_joint    share of bans induced by one rival / by rivals jointly
   Delta         collusion index (0 = Nash, 1 = joint monopoly)
   p_mean        average posted price (Nash shown for reference)
   survivors     firms still solvent at episode end, on average
@@ -39,25 +45,29 @@ from src.agents.q_learning import QLearningConfig
 from src.agents.trainer import SimulationConfig, MultiAgentTrainer
 from src.benchmarks.diagnostics import framing_market, market_diagnostics, format_diagnostics
 
-# name, N, rule, rule_param, lethal
-CONFIGS = [
-    ("N=3 mean d=0.10 lethal", 3, RuleType.MEAN_RATIO, 0.10, True),
-    ("N=3 mean d=0.10 non-lethal", 3, RuleType.MEAN_RATIO, 0.10, False),
-    ("N=3 median d=0.10 lethal", 3, RuleType.MEDIAN_RATIO, 0.10, True),
-    ("N=3 cap p=0.60 lethal", 3, RuleType.PRICE_CAP, 0.60, True),
-    ("N=4 mean d=0.10 lethal", 4, RuleType.MEAN_RATIO, 0.10, True),
-    ("N=4 median d=0.10 lethal", 4, RuleType.MEDIAN_RATIO, 0.10, True),
-]
+# name, N, rule, rule_param, lethal, N_min
+CONFIGS = []
+for _n_min in (3, 2):
+    CONFIGS += [
+        (f"N=3 mean d=0.10 lethal Nmin={_n_min}", 3, RuleType.MEAN_RATIO, 0.10, True, _n_min),
+        (f"N=3 mean d=0.10 safe Nmin={_n_min}", 3, RuleType.MEAN_RATIO, 0.10, False, _n_min),
+        (f"N=3 median d=0.10 lethal Nmin={_n_min}", 3, RuleType.MEDIAN_RATIO, 0.10, True, _n_min),
+        (f"N=3 cap p=0.60 lethal Nmin={_n_min}", 3, RuleType.PRICE_CAP, 0.60, True, _n_min),
+        (f"N=4 mean d=0.10 lethal Nmin={_n_min}", 4, RuleType.MEAN_RATIO, 0.10, True, _n_min),
+        (f"N=4 median d=0.10 lethal Nmin={_n_min}", 4, RuleType.MEDIAN_RATIO, 0.10, True, _n_min),
+    ]
 
 
-def make_market(n, rule, param, lethal):
-    return framing_market(num_firms=n, lethal=lethal,
-                          threshold_delta=param if rule != RuleType.PRICE_CAP else 0.10)
+def make_market(n, rule, param, lethal, n_min=3):
+    m = framing_market(num_firms=n, lethal=lethal,
+                       threshold_delta=param if rule != RuleType.PRICE_CAP else 0.10)
+    m.min_active_for_audit = n_min
+    return m
 
 
 def run_one(job):
-    name, n, rule, param, lethal, seed, train_steps, eval_steps, explore_frac, episode_length = job
-    market = make_market(n, rule, param, lethal)
+    name, n, rule, param, lethal, n_min, seed, train_steps, eval_steps, explore_frac, episode_length = job
+    market = make_market(n, rule, param, lethal, n_min)
     eps_min = 0.01
     q_cfg = QLearningConfig(
         learning_rate=0.10, gamma=0.95, eps_start=1.0, eps_min=eps_min,
@@ -81,12 +91,14 @@ def run_one(job):
 
     return {
         "config": name, "N": n, "rule": RuleType(rule).name, "rule_param": param, "lethal": lethal,
-        "seed": seed, "train_steps": train_steps,
+        "n_min": n_min, "seed": seed, "train_steps": train_steps,
         "nash_price": float(tr.nash_prices[0]), "nash_profit": float(tr.nash_profits[0]),
         "mono_price": float(tr.mono_prices[0]),
         "greedy_kills_per_episode": float(kills.sum()),
         "greedy_max_firm_kills_per_episode": float(kills.max()),
         "greedy_bankruptcies_per_episode": g.total_bankruptcies / episodes,
+        "greedy_self_bankruptcies_per_episode": (g.total_bankruptcies - g.induced_bankruptcies) / episodes,
+        "greedy_W_joint": g.joint_weaponization_rate,
         "greedy_survivors": n - g.total_bankruptcies / episodes,
         "greedy_W": g.weaponization_rate,
         "greedy_bans_per_episode": g.total_fresh_bans / episodes,
@@ -102,11 +114,11 @@ def run_one(job):
 
 
 def summarize(rows):
-    hdr = (f"{'config':<30}{'kills/ep':>13}{'framed':>8}{'W':>12}{'Delta':>13}"
-           f"{'p_mean':>9}{'Nash':>6}{'survive':>9}{'coverage':>10}")
+    hdr = (f"{'config':<36}{'kills/ep':>12}{'framed':>8}{'self/ep':>9}{'W':>7}{'W_joint':>9}"
+           f"{'Delta':>13}{'p_mean':>8}{'survive':>9}{'cover':>7}")
     print("\n" + "=" * len(hdr)); print(hdr); print("-" * len(hdr))
     out = []
-    for name, n, *_ in CONFIGS:
+    for name, *_ in CONFIGS:
         rs = [r for r in rows if r["config"] == name]
         if not rs:
             continue
@@ -121,10 +133,13 @@ def summarize(rows):
         p, _ = ms("greedy_mean_price")
         s, _ = ms("greedy_survivors")
         cov, _ = ms("coverage")
+        selfb, _ = ms("greedy_self_bankruptcies_per_episode")
+        wj, _ = ms("greedy_W_joint")
         framed = sum(r["greedy_kills_per_episode"] >= 0.5 for r in rs)
-        print(f"{name:<30}{f'{k:.2f}+-{ks:.2f}':>13}{f'{framed}/{len(rs)}':>8}{f'{w:.2f}+-{ws:.2f}':>12}"
-              f"{f'{d:+.2f}+-{ds:.2f}':>13}{p:>9.3f}{rs[0]['nash_price']:>6.2f}{s:>9.2f}{cov:>10.3f}")
-        out.append(dict(config=name, kills=k, kills_sd=ks, framed=framed, n=len(rs), W=w, delta=d, delta_sd=ds))
+        print(f"{name:<36}{f'{k:.2f}+-{ks:.2f}':>12}{f'{framed}/{len(rs)}':>8}{selfb:>9.2f}{w:>7.2f}{wj:>9.2f}"
+              f"{f'{d:+.2f}+-{ds:.2f}':>13}{p:>8.3f}{s:>9.2f}{cov:>7.3f}")
+        out.append(dict(config=name, kills=k, kills_sd=ks, framed=framed, n=len(rs), W=w, delta=d, delta_sd=ds,
+                        self_deaths=selfb))
     print("=" * len(hdr))
     return out
 
@@ -135,20 +150,26 @@ def plot(summary, path):
     import matplotlib.pyplot as plt
 
     names = [s["config"] for s in summary]
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5.5))
-    ax1.bar(names, [s["kills"] for s in summary], yerr=[s["kills_sd"] for s in summary],
-            capsize=4, color="#c0392b")
-    ax1.set_ylabel("induced rival bankruptcies per episode (greedy)")
-    ax1.set_title("All firms learning: framing kills")
-    ax1.tick_params(axis="x", rotation=30)
+    x = np.arange(len(names))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 6.5))
+    ax1.bar(x - 0.2, [s["kills"] for s in summary], width=0.4, yerr=[s["kills_sd"] for s in summary],
+            capsize=3, color="#c0392b", label="framed (rival-induced)")
+    ax1.bar(x + 0.2, [s["self_deaths"] for s in summary], width=0.4, color="#7f8c8d",
+            label="self-inflicted (not rival-induced)")
+    ax1.set_xticks(x, names)
+    ax1.legend()
+    ax1.set_ylabel("bankruptcies per episode (greedy)")
+    ax1.set_title("All firms learning: who removes firms from the market")
+    ax1.tick_params(axis="x", rotation=60)
     ax1.grid(True, axis="y", linestyle="--", alpha=0.5)
 
-    ax2.bar(names, [s["delta"] for s in summary], yerr=[s["delta_sd"] for s in summary],
+    ax2.bar(x, [s["delta"] for s in summary], yerr=[s["delta_sd"] for s in summary],
             capsize=4, color="#8e44ad")
     ax2.axhline(0, color="gray", linewidth=1)
     ax2.set_ylabel("collusion index Delta (0 = Nash, 1 = monopoly)")
+    ax2.set_xticks(x, names)
     ax2.set_title("All firms learning: pricing outcome")
-    ax2.tick_params(axis="x", rotation=30)
+    ax2.tick_params(axis="x", rotation=60)
     ax2.grid(True, axis="y", linestyle="--", alpha=0.5)
     plt.tight_layout()
     plt.savefig(path, dpi=200)
@@ -172,15 +193,15 @@ def main():
 
     configs = [c for c in CONFIGS if args.only is None or args.only in c[0]]
     print("Market diagnostics")
-    for name, n, rule, param, lethal in configs:
+    for name, n, rule, param, lethal, n_min in configs:
         print(f"[{name}]")
-        print(format_diagnostics(market_diagnostics(make_market(n, rule, param, lethal), rule_type=rule, rule_param=param)))
+        print(format_diagnostics(market_diagnostics(make_market(n, rule, param, lethal, n_min), rule_type=rule, rule_param=param)))
 
     jobs = [
-        (name, n, rule, param, lethal, 2000 + s,
+        (name, n, rule, param, lethal, n_min, 2000 + s,
          args.train_steps_n3 if n == 3 else args.train_steps_n4,
          args.eval_steps, args.explore_frac, args.episode_length)
-        for name, n, rule, param, lethal in configs for s in range(args.seeds)
+        for name, n, rule, param, lethal, n_min in configs for s in range(args.seeds)
     ]
     print(f"\nRunning {len(jobs)} jobs on {args.workers} workers...")
     t0 = time.time()
