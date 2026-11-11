@@ -73,11 +73,36 @@ def build():
             "-std=c++17",
             "-O3",
             "-shared",
-            "-fopenmp",
+        ]
+        # Check OpenMP support
+        if system == "Darwin":
+            # On macOS, Apple Clang does not support -fopenmp directly
+            brew_libomp = Path("/opt/homebrew/opt/libomp")
+            intel_libomp = Path("/usr/local/opt/libomp")
+            if (brew_libomp / "include" / "omp.h").is_file():
+                cmd.extend([
+                    "-Xpreprocessor", "-fopenmp",
+                    f"-I{brew_libomp}/include",
+                    f"-L{brew_libomp}/lib",
+                    "-lomp",
+                ])
+            elif (intel_libomp / "include" / "omp.h").is_file():
+                cmd.extend([
+                    "-Xpreprocessor", "-fopenmp",
+                    f"-I{intel_libomp}/include",
+                    f"-L{intel_libomp}/lib",
+                    "-lomp",
+                ])
+            else:
+                print("Note: libomp not detected on macOS; compiling sequential native kernel.")
+        else:
+            cmd.append("-fopenmp")
+
+        cmd.extend([
             str(src_file),
             "-o",
             str(out_file),
-        ]
+        ])
     elif compiler_type == "msvc":
         cmd = [
             compiler_path,

@@ -37,6 +37,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             phi = float(data.get("phi", 0.10))
             steps = int(data.get("steps", 30_000))
             warmup = int(data.get("warmup", 5_000))
+            num_firms = int(data.get("num_firms", 4))
             agent_type = str(data.get("agent_type", "adaptive"))
             seed = int(data.get("seed", 42))
 
@@ -48,7 +49,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             rule_type = rule_map.get(rule_str, RuleType.MEAN_RATIO)
 
             m_cfg = MarketConfig(
-                num_firms=3,
+                num_firms=num_firms,
                 price_sensitivity=0.25,
                 fixed_cost=phi,
                 initial_capital=k0,
@@ -79,6 +80,8 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 "mean_prices": [float(p) for p in results.mean_prices],
                 "total_fresh_bans": results.total_fresh_bans,
                 "induced_bans": results.induced_bans,
+                "unique_states_visited": results.unique_states_visited,
+                "state_coverage_ratio": results.state_coverage_ratio,
                 "exploit_events": results.exploit_events or [],
                 "trace": results.trace_data or [],
             }

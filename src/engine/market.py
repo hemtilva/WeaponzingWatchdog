@@ -11,9 +11,9 @@ from .binding import NATIVE_LIB, is_native_available
 @dataclass
 class MarketConfig:
     """Market oligopoly configuration parameters."""
-    num_firms: int = 3
-    marginal_costs: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=np.float64))
-    qualities: np.ndarray = field(default_factory=lambda: np.full(3, 2.0, dtype=np.float64))
+    num_firms: int = 4               # Standard N=4 setting: watchdog remains active after first ban
+    marginal_costs: Optional[np.ndarray] = None
+    qualities: Optional[np.ndarray] = None
     outside_option: float = 0.0
     price_sensitivity: float = 0.25  # sigma_d > 0
     market_size: float = 1.0         # Q > 0
@@ -22,6 +22,17 @@ class MarketConfig:
     ban_duration: int = 3            # T_ban
     audit_budget: int = 1            # B
     threshold_delta: float = 0.2     # delta
+
+    def __post_init__(self):
+        if self.marginal_costs is None or len(self.marginal_costs) != self.num_firms:
+            self.marginal_costs = np.zeros(self.num_firms, dtype=np.float64)
+        else:
+            self.marginal_costs = np.asarray(self.marginal_costs, dtype=np.float64)
+
+        if self.qualities is None or len(self.qualities) != self.num_firms:
+            self.qualities = np.full(self.num_firms, 2.0, dtype=np.float64)
+        else:
+            self.qualities = np.asarray(self.qualities, dtype=np.float64)
 
 
 def compute_market_shares(

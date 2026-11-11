@@ -194,16 +194,26 @@ WeaponzingWatchdog/
 │   │   ├── metrics.py               # Computation of W, Exploitability, Delta, SWL
 │   │   └── stats.py                 # Confidence intervals, bootstrapping, tests
 │   └── extensions/
-│       ├── learning_regulator.py    # Extension A: Bi-level adaptive regulator
-│       └── demand_shock.py          # Extension B: Non-stationary demand shocks
+│       ├── learning_regulator.py    # Extension A: Bi-level adaptive regulator & attacker
+│       └── demand_shock.py          # Extension B: Non-stationary demand shocks & cohorts
 ├── scripts/
-│   └── build_engine.py              # Cross-platform compiler detector & build script
+│   ├── build_engine.py              # Cross-platform compiler detector & build script
+│   ├── generate_phase_diagrams.py   # Multi-rule phase diagram generator (Figure 1)
+│   ├── generate_trace_plot.py       # Step-by-step price and ban timeline trace visualizer
+│   └── run_all_tests.py             # Master test suite runner (53 unit tests)
+├── dashboard/                       # Interactive local web dashboard
+│   ├── server.py                    # Lightweight HTTP simulation server
+│   └── index.html                   # Interactive simulation UI
 ├── experiments/
 │   ├── run_exact_boundary.py        # DP exploit frontier mapping
 │   ├── run_q_sweeps.py              # Multi-seed tabular Q-learning experiments
-│   └── run_trait_ablations.py       # Parametric trait sweeps over (λ, μ, α)
-├── notebooks/                       # Phase diagrams and visualization
-└── tests/                           # Unit tests for Proposition 1 and market dynamics
+│   ├── run_trait_ablations.py       # Parametric trait sweeps over (λ, μ, α)
+│   ├── run_extension_a.py           # Extension A: Adaptive regulator & cyclic dynamics
+│   ├── run_extension_b.py           # Extension B: Demand shock cohort sweeps
+│   └── run_full_production_suite.py # Master runner (--smoke-test vs --production)
+└── tests/                           # 53 unit tests verifying Proposition 1, harm, and extensions
+    ├── test_scripted_attacker.py    # Ground truth harm measure W verification
+    └── ...
 ```
 
 ---

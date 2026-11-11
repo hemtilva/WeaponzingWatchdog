@@ -30,6 +30,7 @@ TEST_MODULES = [
     "tests.test_trainer",
     "tests.test_evaluation",
     "tests.test_extensions",
+    "tests.test_scripted_attacker",
 ]
 
 

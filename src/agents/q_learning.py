@@ -21,19 +21,23 @@ class QLearningConfig:
 class StateIndexer:
     """Compact bijection between discrete market observations and flat state indices.
 
-    Observation components:
-      1. Lagged joint prices: p_{t-1} in {0, ..., M-1}^3 -> M^3 values
-      2. Ban indicators: b_t in {0, 1}^3 -> 8 values
+    Supports arbitrary N active firms (e.g. N=3 or N=4 standard):
+      1. Lagged joint prices: p_{t-1} in {0, ..., M-1}^N -> M^N values
+      2. Ban indicators: b_t in {0, 1}^N -> 2^N values
       3. Capital bin: kappa in {low=0, mid=1, high=2} -> 3 values
 
-    Total states: M^3 * 8 * 3. With M=11, total = 31,944 states.
+    Total states: (M^N) * (2^N) * 3.
+      - N=3, M=11: 11^3 * 8 * 3 = 31,944 states.
+      - N=4, M=7:   7^4 * 16 * 3 = 115,248 states (~110,000 states).
     """
 
-    def __init__(self, price_grid: np.ndarray, fixed_cost: float = 0.2):
+    def __init__(self, price_grid: np.ndarray, fixed_cost: float = 0.2, num_firms: int = 3):
         self.price_grid = np.asarray(price_grid, dtype=np.float64)
         self.M = len(self.price_grid)
         self.fixed_cost = fixed_cost
-        self.num_states = (self.M ** 3) * 8 * 3
+        self.num_firms = num_firms
+        self.num_bans = 2 ** num_firms
+        self.num_states = (self.M ** num_firms) * self.num_bans * 3
 
     def get_capital_bin(self, capital: float) -> int:
         """Discretizes continuous capital into 3 bins:
@@ -59,37 +63,41 @@ class StateIndexer:
         capital: float,
     ) -> int:
         """Encodes observation into flat integer state index via Horner's method."""
-        p_idx0 = self.snap_price_to_index(lagged_prices[0])
-        p_idx1 = self.snap_price_to_index(lagged_prices[1])
-        p_idx2 = self.snap_price_to_index(lagged_prices[2])
+        price_combo = 0
+        for p in lagged_prices[:self.num_firms]:
+            p_idx = self.snap_price_to_index(p)
+            price_combo = price_combo * self.M + p_idx
 
-        price_combo = (p_idx0 * self.M + p_idx1) * self.M + p_idx2
-        ban_combo = ((int(ban_indicators[0] > 0) * 2) + int(ban_indicators[1] > 0)) * 2 + int(ban_indicators[2] > 0)
+        ban_combo = 0
+        for b in ban_indicators[:self.num_firms]:
+            ban_combo = (ban_combo << 1) | int(b > 0)
+
         cap_bin = self.get_capital_bin(capital)
-
-        # Flat state index: (price_combo * 8 + ban_combo) * 3 + cap_bin
-        state_idx = (price_combo * 8 + ban_combo) * 3 + cap_bin
+        state_idx = (price_combo * self.num_bans + ban_combo) * 3 + cap_bin
         return int(state_idx)
 
-    def decode(self, state_idx: int) -> Tuple[Tuple[int, int, int], Tuple[int, int, int], int]:
-        """Decodes flat state index back into ((p0, p1, p2), (b0, b1, b2), cap_bin)."""
+    def decode(self, state_idx: int) -> Tuple[Tuple[int, ...], Tuple[int, ...], int]:
+        """Decodes flat state index back into (prices, bans, cap_bin)."""
         rem = state_idx
         cap_bin = rem % 3
         rem //= 3
-        ban_combo = rem % 8
-        price_combo = rem // 8
 
-        b2 = ban_combo % 2
-        ban_combo //= 2
-        b1 = ban_combo % 2
-        b0 = ban_combo // 2
+        ban_combo = rem % self.num_bans
+        price_combo = rem // self.num_bans
 
-        p2 = price_combo % self.M
-        price_combo //= self.M
-        p1 = price_combo % self.M
-        p0 = price_combo // self.M
+        bans = []
+        for _ in range(self.num_firms):
+            bans.append(ban_combo % 2)
+            ban_combo //= 2
+        bans = tuple(reversed(bans))
 
-        return ((p0, p1, p2), (b0, b1, b2), cap_bin)
+        prices = []
+        for _ in range(self.num_firms):
+            prices.append(price_combo % self.M)
+            price_combo //= self.M
+        prices = tuple(reversed(prices))
+
+        return (prices, bans, cap_bin)
 
 
 class QLearningAgent:
@@ -114,6 +122,25 @@ class QLearningAgent:
         # Q-table shape: (num_states, num_actions)
         self.Q = np.full((self.num_states, self.num_actions), init_q, dtype=np.float32)
         self.epsilon = float(config.eps_start)
+
+        # State visitation tracking (Feedback 1)
+        self.state_visit_counts = np.zeros(self.num_states, dtype=np.int32)
+
+    @property
+    def unique_states_visited(self) -> int:
+        """Returns total distinct states visited by this agent."""
+        return int(np.count_nonzero(self.state_visit_counts))
+
+    @property
+    def state_coverage_ratio(self) -> float:
+        """Returns fraction of total state space explored in [0, 1]."""
+        if self.num_states == 0:
+            return 0.0
+        return float(self.unique_states_visited) / float(self.num_states)
+
+    def effective_states_visited(self, min_visits: int = 5) -> int:
+        """Returns count of states visited at least min_visits times."""
+        return int(np.count_nonzero(self.state_visit_counts >= min_visits))
 
     def select_action(self, state_idx: int, rng: np.random.Generator) -> int:
         """Selects action via epsilon-greedy policy with uniform random tie-breaking."""
@@ -140,6 +167,9 @@ class QLearningAgent:
 
         Q(s, a) <- Q(s, a) + alpha * [reward + gamma * max_a' Q(s', a') * (1 - done) - Q(s, a)]
         """
+        # Record state visit
+        self.state_visit_counts[state_idx] += 1
+
         target = reward
         if not done:
             target += self.cfg.gamma * float(np.max(self.Q[next_state_idx]))

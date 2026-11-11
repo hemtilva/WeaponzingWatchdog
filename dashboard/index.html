@@ -470,8 +470,17 @@
             <label>Agent Cohort Behavior</label>
             <select id="agentSelect">
                 <option value="adaptive" selected>Adaptive Q-Learners (RL)</option>
+                <option value="scripted_attacker">Scripted Attacker (Predatory Framing)</option>
                 <option value="honest">Ideal Good Boys (Nash Pricing)</option>
                 <option value="random">Pure Random Noise</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>Active Market Sellers (N)</label>
+            <select id="firmsSelect">
+                <option value="4" selected>N = 4 Firms (Standard Watchdog)</option>
+                <option value="3">N = 3 Firms (Small Game)</option>
             </select>
         </div>
 

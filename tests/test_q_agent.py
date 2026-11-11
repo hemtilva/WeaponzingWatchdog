@@ -1,7 +1,10 @@
 """Unit tests for StateIndexer and QLearningAgent."""
 
 import numpy as np
-import pytest
+try:
+    import pytest
+except ImportError:
+    pass
 from src.agents.q_learning import StateIndexer, QLearningAgent, QLearningConfig
 from src.agents.traits import AgentTraits
 
@@ -86,4 +89,43 @@ def test_epsilon_decay():
     for _ in range(50):
         agent.decay_epsilon()
     assert agent.epsilon == 0.1  # Bounded below by eps_min
+
+
+def test_state_indexer_n4():
+    # N=4 with M=7 price levels: (7^4) * (2^4) * 3 = 2401 * 16 * 3 = 115,248 states (~110,000 states)
+    price_grid = np.linspace(1.0, 2.5, 7)
+    indexer = StateIndexer(price_grid, fixed_cost=0.2, num_firms=4)
+    assert indexer.num_states == 115_248
+
+    # Test encode/decode roundtrip with 4 firms
+    prices = [1.0, 1.25, 2.0, 2.5]
+    bans = [0, 1, 0, 0]
+    cap = 0.5
+    s_idx = indexer.encode(prices, bans, cap)
+    assert 0 <= s_idx < indexer.num_states
+
+    dec_p, dec_b, dec_cap = indexer.decode(s_idx)
+    assert len(dec_p) == 4
+    assert len(dec_b) == 4
+    assert dec_b == (0, 1, 0, 0)
+    assert dec_cap == indexer.get_capital_bin(cap)
+
+
+def test_state_visitation_tracking():
+    price_grid = np.linspace(1.0, 2.0, 5)
+    indexer = StateIndexer(price_grid, fixed_cost=0.2, num_firms=3)
+    agent = QLearningAgent(firm_idx=0, config=QLearningConfig(), indexer=indexer)
+
+    assert agent.unique_states_visited == 0
+    assert agent.state_coverage_ratio == 0.0
+
+    # Visit state 10 three times and state 25 six times
+    for _ in range(3):
+        agent.update(state_idx=10, action_idx=0, reward=1.0, next_state_idx=10)
+    for _ in range(6):
+        agent.update(state_idx=25, action_idx=1, reward=2.0, next_state_idx=25)
+
+    assert agent.unique_states_visited == 2
+    assert agent.effective_states_visited(min_visits=5) == 1
+    assert agent.state_coverage_ratio > 0.0
 

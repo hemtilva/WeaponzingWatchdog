@@ -54,6 +54,10 @@ class SimulationResults:
     bankruptcy_rate: float
     total_fresh_bans: int
     induced_bans: int
+    unique_states_visited: int = 0
+    state_coverage_ratio: float = 0.0
+    effective_states_visited: int = 0
+    effective_state_coverage: float = 0.0
     history_prices: Optional[np.ndarray] = None
     trace_data: Optional[List[Dict[str, Any]]] = None
     exploit_events: List[Dict[str, Any]] = field(default_factory=list)
@@ -109,7 +113,7 @@ class MultiAgentTrainer:
         )
 
         # Setup State Indexer & Agents
-        self.indexer = StateIndexer(self.price_grid, fixed_cost=self.m_cfg.fixed_cost)
+        self.indexer = StateIndexer(self.price_grid, fixed_cost=self.m_cfg.fixed_cost, num_firms=self.N)
         traits_list = config.agent_traits or [AgentTraits() for _ in range(self.N)]
 
         self.agents = [
@@ -168,6 +172,18 @@ class MultiAgentTrainer:
                     elif self.cfg.agent_type == "random":
                         # Pure random baseline
                         a_idx = int(self.rng.integers(0, len(self.price_grid)))
+                    elif self.cfg.agent_type == "scripted_attacker":
+                        # Firm 0 is the scripted predatory attacker; rivals are honest Nash pricers
+                        if i == 0:
+                            if num_active >= 3:
+                                # Crash price to minimum grid index (cost floor) to trigger relative rule flags on rivals
+                                a_idx = 0
+                            else:
+                                # When rivals are eliminated/banned, extract joint monopoly profit
+                                a_idx = self.indexer.snap_price_to_index(self.mono_prices[0])
+                        else:
+                            # Innocent rivals price honestly at Bertrand-Nash
+                            a_idx = self.indexer.snap_price_to_index(self.nash_prices[i])
                     else:
                         # Adaptive Q-learning agent
                         a_idx = self.agents[i].select_action(current_states[i], self.rng)
@@ -390,6 +406,12 @@ class MultiAgentTrainer:
         num_episodes_in_eval = max(1, self.cfg.eval_window // self.cfg.episode_length)
         b_rate = bankruptcies_in_eval / (self.N * num_episodes_in_eval)
 
+        # State visitation & exploration coverage (Feedback 1)
+        avg_unique = int(np.mean([a.unique_states_visited for a in self.agents]))
+        avg_coverage = float(np.mean([a.state_coverage_ratio for a in self.agents]))
+        avg_effective = int(np.mean([a.effective_states_visited(min_visits=5) for a in self.agents]))
+        avg_effective_cov = float(avg_effective / self.indexer.num_states) if self.indexer.num_states > 0 else 0.0
+
         return SimulationResults(
             weaponization_rate=float(w_rate),
             collusion_index=float(delta),
@@ -399,6 +421,10 @@ class MultiAgentTrainer:
             bankruptcy_rate=float(min(1.0, b_rate)),
             total_fresh_bans=total_fresh_bans,
             induced_bans=induced_bans,
+            unique_states_visited=avg_unique,
+            state_coverage_ratio=avg_coverage,
+            effective_states_visited=avg_effective,
+            effective_state_coverage=avg_effective_cov,
             trace_data=trace_history,
             exploit_events=trace_exploit_events,
         )

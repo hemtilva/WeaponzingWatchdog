@@ -22,6 +22,7 @@ from src.engine.rules import (
     update_ban_timers,
     compute_counterfactual_harm,
 )
+from src.agents.traits import AgentTraits, compute_agent_reward
 from src.agents.trainer import SimulationConfig, MultiAgentTrainer, SimulationResults
 
 
@@ -77,9 +78,10 @@ class DemandShockEngine:
         eval_start = max(0, base_sim_config.total_steps - base_sim_config.eval_window)
         eval_welfare = []
         eval_q = []
-        bankruptcies = 0
+        bankruptcies_in_eval = 0
         total_bans = 0
         induced_bans = 0
+        episode_step = 0
 
         for step in range(base_sim_config.total_steps):
             is_warmup = step < base_sim_config.warmup_steps
@@ -132,9 +134,7 @@ class DemandShockEngine:
 
             # Update agents
             for i in range(N):
-                reward_i = trainer.agents[i].traits.alpha  # Base reward evaluation
                 other_p_sum = float(np.sum(profits) - profits[i])
-                from src.agents.traits import compute_agent_reward
                 rew = compute_agent_reward(
                     profit=profits[i], Q=q_t, CS=cs, other_profits_sum=other_p_sum,
                     N=N, harm_count=harm[i], traits=trainer.agents[i].traits
@@ -157,16 +157,103 @@ class DemandShockEngine:
                             if cf_f[j] == 0:
                                 induced_bans += 1
                                 break
+                for i in range(N):
+                    if capital[i] > 0.0 and next_capital[i] <= 0.0:
+                        bankruptcies_in_eval += 1
 
             capital = next_capital
             ban_timers = next_timers
             lagged_prices = chosen_prices
+            episode_step += 1
+
+            # Episode reset condition
+            active_next = np.sum([1 if (ban_timers[i] == 0 and capital[i] > 0.0) else 0 for i in range(N)])
+            if episode_step >= base_sim_config.episode_length or active_next <= 1:
+                capital = np.full(N, m_cfg.initial_capital, dtype=np.float64)
+                ban_timers = np.zeros(N, dtype=np.int32)
+                lagged_prices = trainer.nash_prices.copy()
+                episode_step = 0
 
         w_rate = (induced_bans / total_bans) if total_bans > 0 else 0.0
+        n_eval_periods = max(1, base_sim_config.eval_window)
+        b_rate = float(bankruptcies_in_eval) / float(n_eval_periods * N)
+
         return {
-            "mean_market_size": float(np.mean(eval_q)),
-            "mean_social_welfare": float(np.mean(eval_welfare)),
+            "mean_market_size": float(np.mean(eval_q)) if eval_q else float(m_cfg.market_size),
+            "mean_social_welfare": float(np.mean(eval_welfare)) if eval_welfare else 0.0,
             "weaponization_rate": float(w_rate),
+            "bankruptcy_rate": float(b_rate),
             "total_bans": total_bans,
             "induced_bans": induced_bans,
+            "bankruptcies": bankruptcies_in_eval,
         }
+
+
+def run_cohort_simulation(
+    cohort: str = "mixed",
+    panic_psi: float = 0.50,
+    shock_volatility: float = 0.10,
+    steps: int = 30_000,
+    warmup: int = 5_000,
+    episode_length: int = 500,
+    rule_type: RuleType = RuleType.MEAN_RATIO,
+    delta: float = 0.20,
+    t_ban: int = 3,
+    fixed_cost: float = 0.10,
+    k0: float = 1.0,
+    seed: int = 42,
+) -> Dict[str, Any]:
+    """Runs a multi-agent simulation under non-stationary demand shock for a specific trait cohort.
+
+    Cohorts:
+      - 'ethical': All firms have mu_ethics = 1.0 (firm ethical stance against causing bans)
+      - 'predatory': All firms have mu_ethics = 0.0 (pure profit maximizers)
+      - 'mixed': Firm 0 is predatory (mu=0.0); Firms 1 & 2 are ethical (mu=1.0)
+    """
+    if cohort == "ethical":
+        traits = [AgentTraits(alpha=0.0, lambda_altruism=0.0, mu_ethics=1.0) for _ in range(3)]
+    elif cohort == "predatory":
+        traits = [AgentTraits(alpha=0.0, lambda_altruism=0.0, mu_ethics=0.0) for _ in range(3)]
+    elif cohort == "mixed":
+        traits = [
+            AgentTraits(alpha=0.0, lambda_altruism=0.0, mu_ethics=0.0),
+            AgentTraits(alpha=0.0, lambda_altruism=0.0, mu_ethics=1.0),
+            AgentTraits(alpha=0.0, lambda_altruism=0.0, mu_ethics=1.0),
+        ]
+    else:
+        raise ValueError(f"Unknown cohort type: {cohort}. Must be 'ethical', 'predatory', or 'mixed'.")
+
+    m_cfg = MarketConfig(
+        num_firms=3,
+        price_sensitivity=0.25,
+        fixed_cost=fixed_cost,
+        initial_capital=k0,
+        ban_duration=t_ban,
+        threshold_delta=delta,
+    )
+    sim_cfg = SimulationConfig(
+        market=m_cfg,
+        total_steps=steps,
+        warmup_steps=warmup,
+        episode_length=episode_length,
+        rule_type=rule_type,
+        rule_param=delta,
+        agent_traits=traits,
+        eval_window=min(steps // 3, 10_000),
+        seed=seed,
+    )
+
+    shock_cfg = DemandShockConfig(
+        base_market_size=1.0,
+        shock_start_step=warmup,
+        panic_psi=panic_psi,
+        shock_volatility=shock_volatility,
+        seed=seed,
+    )
+    engine = DemandShockEngine(shock_cfg)
+    res = engine.evaluate_policy_under_shock(sim_cfg)
+
+    res["cohort"] = cohort
+    res["panic_psi"] = panic_psi
+    res["seed"] = seed
+    return res

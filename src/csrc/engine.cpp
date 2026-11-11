@@ -4,7 +4,9 @@
 #include <numeric>
 #include <cstring>
 #include <iostream>
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 
 #if defined(_WIN32) || defined(__CYGWIN__)
   #define EXPORT_API extern "C" __declspec(dllexport)
@@ -309,7 +311,9 @@ EXPORT_API void solve_value_iteration_c(
     for (int it = 0; it < max_iter; ++it) {
         double max_delta = 0.0;
 
+#ifdef _OPENMP
         #pragma omp parallel for schedule(dynamic, 64) reduction(max:max_delta)
+#endif
         for (int idx = 0; idx < total_states; ++idx) {
             int rem = idx;
             int k3 = rem % SK; rem /= SK;

@@ -79,6 +79,10 @@ def run_single_seed(seed: int, rule_type: RuleType, delta: float, t_ban: int,
         "mean_p2": float(res.mean_prices[2]),
         "total_fresh_bans": res.total_fresh_bans,
         "induced_bans": res.induced_bans,
+        "unique_states": res.unique_states_visited,
+        "state_coverage": res.state_coverage_ratio,
+        "effective_states": res.effective_states_visited,
+        "effective_coverage": res.effective_state_coverage,
     }
 
 

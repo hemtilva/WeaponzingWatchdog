@@ -6,8 +6,13 @@ except ImportError:
     pass
 
 import numpy as np
-from src.extensions.demand_shock import DemandShockConfig, DemandShockEngine
-from src.extensions.learning_regulator import AdaptiveRegulatorConfig, SlowTimescaleRegulator
+from src.extensions.demand_shock import DemandShockConfig, DemandShockEngine, run_cohort_simulation
+from src.extensions.learning_regulator import (
+    AdaptiveRegulatorConfig,
+    SlowTimescaleRegulator,
+    evaluate_checkpoint_exploitability,
+    simulate_bi_level_dynamics,
+)
 from src.agents.trainer import SimulationConfig
 from src.engine.market import MarketConfig
 
@@ -76,3 +81,29 @@ def test_adaptive_regulator_epoch_update():
     assert new_delta <= 0.50
     assert len(regulator.history_objectives) == 1
     assert len(regulator.history_deltas) == 2
+
+
+def test_checkpoint_exploitability():
+    # Evaluate at a tight delta (delta = 0.15) where Proposition 1 allows single-firm framing
+    tight_res = evaluate_checkpoint_exploitability(frozen_delta=0.15, t_ban=2, fixed_cost=0.20, k0_val=0.40)
+    assert "exploitability_gain" in tight_res
+    assert "optimal_price" in tight_res
+    assert "is_framing" in tight_res
+    assert tight_res["optimal_price"] <= tight_res["nash_price"]
+
+    # Evaluate at a loose delta (delta = 0.55) where Proposition 1 requires delta < 0.50 for N=3
+    # Framing should not be a profitable best response here
+    loose_res = evaluate_checkpoint_exploitability(frozen_delta=0.55, t_ban=2, fixed_cost=0.20, k0_val=0.40)
+    assert loose_res["exploitability_gain"] <= tight_res["exploitability_gain"] + 1e-4
+
+
+def test_demand_shock_cohort_simulation():
+    # Quick 1000-step runs comparing ethical vs predatory
+    res_ethical = run_cohort_simulation(cohort="ethical", panic_psi=0.4, steps=1000, warmup=200, seed=42)
+    res_predatory = run_cohort_simulation(cohort="predatory", panic_psi=0.4, steps=1000, warmup=200, seed=42)
+
+    assert "mean_social_welfare" in res_ethical
+    assert "mean_social_welfare" in res_predatory
+    assert res_ethical["cohort"] == "ethical"
+    assert res_predatory["cohort"] == "predatory"
+    assert res_ethical["mean_market_size"] > 0.0
