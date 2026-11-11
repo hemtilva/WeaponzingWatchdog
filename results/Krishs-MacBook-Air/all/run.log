@@ -1,0 +1,228 @@
+
+######## study: single (20 seeds) ########
+Running 100 jobs on 9 workers...
+  5/100 jobs  elapsed   0.0 min  ETA   0.2 min
+  10/100 jobs  elapsed   0.0 min  ETA   0.1 min
+  15/100 jobs  elapsed   0.0 min  ETA   0.1 min
+  20/100 jobs  elapsed   0.0 min  ETA   0.1 min
+  25/100 jobs  elapsed   0.0 min  ETA   0.0 min
+  30/100 jobs  elapsed   0.0 min  ETA   0.0 min
+  35/100 jobs  elapsed   0.0 min  ETA   0.0 min
+  40/100 jobs  elapsed   0.0 min  ETA   0.0 min
+  45/100 jobs  elapsed   0.0 min  ETA   0.0 min
+  50/100 jobs  elapsed   0.0 min  ETA   0.0 min
+  55/100 jobs  elapsed   0.0 min  ETA   0.0 min
+  60/100 jobs  elapsed   0.0 min  ETA   0.0 min
+  65/100 jobs  elapsed   0.0 min  ETA   0.0 min
+  70/100 jobs  elapsed   0.0 min  ETA   0.0 min
+  75/100 jobs  elapsed   0.0 min  ETA   0.0 min
+  80/100 jobs  elapsed   0.0 min  ETA   0.0 min
+  85/100 jobs  elapsed   0.0 min  ETA   0.0 min
+  90/100 jobs  elapsed   0.0 min  ETA   0.0 min
+  95/100 jobs  elapsed   0.0 min  ETA   0.0 min
+  100/100 jobs  elapsed   0.1 min  ETA   0.0 min
+done in 3s
+[SAVED] /Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/data/study_single.csv
+
+============================================================================================================================
+config                             kills_by_q_per_ep                 W       firm0_price      firm0_profit      rival_profit
+----------------------------------------------------------------------------------------------------------------------------
+mean d=0.10 lethal                      2.000+-0.000      1.000+-0.000      1.489+-0.001      1.311+-0.001      0.000+-0.000
+mean d=0.20 lethal                      1.974+-0.070      0.994+-0.025      1.486+-0.002      1.283+-0.069      0.004+-0.008
+mean d=0.10 non-lethal                  1.938+-0.183      0.971+-0.093      1.298+-0.156      1.163+-0.166      0.007+-0.013
+median d=0.10 lethal                    0.000+-0.000      0.000+-0.000      0.300+-0.000      0.100+-0.000      0.100+-0.000
+cap p=0.60 lethal                       0.000+-0.000      0.000+-0.000      0.300+-0.000      0.100+-0.000      0.100+-0.000
+============================================================================================================================
+  mean lethal > median d=0.10 lethal     p = 2.34e-10
+  mean lethal > cap p=0.60 lethal        p = 2.34e-10
+  mean lethal > mean d=0.10 non-lethal   p = 4.03e-02
+  learner profit under mean/lethal 1.3115 vs Nash 0.1000; seeds above Nash: 20/20
+[SAVED] /Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/plots/study_single.png
+
+######## study: h2 (10 seeds) ########
+Running 600 jobs on 9 workers...
+  30/600 jobs  elapsed   0.1 min  ETA   1.7 min
+  60/600 jobs  elapsed   0.2 min  ETA   1.4 min
+  90/600 jobs  elapsed   0.2 min  ETA   1.2 min
+  120/600 jobs  elapsed   0.3 min  ETA   1.2 min
+  150/600 jobs  elapsed   0.4 min  ETA   1.1 min
+  180/600 jobs  elapsed   0.5 min  ETA   1.1 min
+  210/600 jobs  elapsed   0.6 min  ETA   1.1 min
+  240/600 jobs  elapsed   0.7 min  ETA   1.1 min
+  270/600 jobs  elapsed   0.9 min  ETA   1.1 min
+  300/600 jobs  elapsed   1.0 min  ETA   1.0 min
+  330/600 jobs  elapsed   1.1 min  ETA   0.9 min
+  360/600 jobs  elapsed   1.2 min  ETA   0.8 min
+  390/600 jobs  elapsed   1.2 min  ETA   0.7 min
+  420/600 jobs  elapsed   1.3 min  ETA   0.6 min
+  450/600 jobs  elapsed   1.4 min  ETA   0.5 min
+  480/600 jobs  elapsed   1.6 min  ETA   0.4 min
+  510/600 jobs  elapsed   1.8 min  ETA   0.3 min
+  540/600 jobs  elapsed   1.9 min  ETA   0.2 min
+  570/600 jobs  elapsed   2.1 min  ETA   0.1 min
+  600/600 jobs  elapsed   2.2 min  ETA   0.0 min
+done in 135s
+[SAVED] /Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/data/study_h2.csv
+
+H2: kills/episode (mean rule), rows K0/Phi, cols T_ban
+[mean]  T_ban:      1      2      3      4      6
+  K0/Phi=1           0.15   0.15   0.15   0.15   0.15
+  K0/Phi=2           0.05   0.61   0.61   0.61   0.61
+  K0/Phi=3           0.06   0.14   0.35   0.35   0.35
+  K0/Phi=4           0.02   0.08   0.21   0.44   0.44
+  K0/Phi=6           0.02   0.06   0.08   0.20   0.79
+  K0/Phi=8           0.00   0.02   0.11   0.15   0.19
+[median]  T_ban:      1      2      3      4      6
+  K0/Phi=1           0.13   0.13   0.13   0.13   0.13
+  K0/Phi=2           0.04   0.33   0.33   0.33   0.33
+  K0/Phi=3           0.02   0.14   0.33   0.33   0.33
+  K0/Phi=4           0.00   0.07   0.17   0.31   0.31
+  K0/Phi=6           0.01   0.07   0.07   0.13   0.16
+  K0/Phi=8           0.00   0.02   0.10   0.11   0.13
+  mean rule: lethal cells 0.394 vs sub-lethal 0.093, p = 1.50e-15
+  Spearman(kills, T_ban*Phi/K0) = +0.448 (p = 3.08e-16)
+[SAVED] /Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/plots/study_h2.png
+
+######## study: h3 (10 seeds) ########
+Running 160 jobs on 9 workers...
+  8/160 jobs  elapsed   0.0 min  ETA   0.8 min
+  16/160 jobs  elapsed   0.1 min  ETA   0.7 min
+  24/160 jobs  elapsed   0.1 min  ETA   0.6 min
+  32/160 jobs  elapsed   0.1 min  ETA   0.6 min
+  40/160 jobs  elapsed   0.2 min  ETA   0.5 min
+  48/160 jobs  elapsed   0.2 min  ETA   0.5 min
+  56/160 jobs  elapsed   0.2 min  ETA   0.4 min
+  64/160 jobs  elapsed   0.3 min  ETA   0.4 min
+  72/160 jobs  elapsed   0.3 min  ETA   0.3 min
+  80/160 jobs  elapsed   0.3 min  ETA   0.3 min
+  88/160 jobs  elapsed   0.3 min  ETA   0.3 min
+  96/160 jobs  elapsed   0.4 min  ETA   0.2 min
+  104/160 jobs  elapsed   0.4 min  ETA   0.2 min
+  112/160 jobs  elapsed   0.4 min  ETA   0.2 min
+  120/160 jobs  elapsed   0.5 min  ETA   0.2 min
+  128/160 jobs  elapsed   0.5 min  ETA   0.1 min
+  136/160 jobs  elapsed   0.5 min  ETA   0.1 min
+  144/160 jobs  elapsed   0.5 min  ETA   0.1 min
+  152/160 jobs  elapsed   0.6 min  ETA   0.0 min
+  160/160 jobs  elapsed   0.6 min  ETA   0.0 min
+done in 37s
+[SAVED] /Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/data/study_h3.csv
+
+============================================================================================================================
+config                                  kills_per_ep                 W           W_joint             delta        mean_price
+----------------------------------------------------------------------------------------------------------------------------
+mu_ethics=0.0                           0.479+-0.230      0.166+-0.104      0.240+-0.115      0.845+-0.021      1.386+-0.039
+mu_ethics=0.01                          0.592+-0.428      0.189+-0.186      0.296+-0.214      0.861+-0.019      1.411+-0.027
+mu_ethics=0.03                          0.545+-0.409      0.221+-0.190      0.273+-0.205      0.859+-0.013      1.407+-0.016
+mu_ethics=0.1                           0.448+-0.295      0.170+-0.157      0.224+-0.147      0.859+-0.022      1.412+-0.034
+mu_ethics=0.3                           0.464+-0.255      0.182+-0.136      0.232+-0.127      0.847+-0.031      1.395+-0.045
+mu_ethics=1.0                           0.514+-0.330      0.175+-0.145      0.258+-0.167      0.864+-0.010      1.412+-0.021
+lambda_altruism=0.0                     0.479+-0.230      0.166+-0.104      0.240+-0.115      0.845+-0.021      1.386+-0.039
+lambda_altruism=0.1                     0.494+-0.275      0.168+-0.130      0.248+-0.139      0.854+-0.024      1.404+-0.039
+lambda_altruism=0.25                    0.249+-0.139      0.089+-0.057      0.125+-0.069      0.861+-0.017      1.422+-0.021
+lambda_altruism=0.5                     0.263+-0.330      0.114+-0.164      0.132+-0.165      0.828+-0.064      1.366+-0.078
+lambda_altruism=1.0                     0.155+-0.142      0.077+-0.071      0.077+-0.071      0.685+-0.343      1.181+-0.441
+alpha=0.0                               0.479+-0.230      0.166+-0.104      0.240+-0.115      0.845+-0.021      1.386+-0.039
+alpha=0.5                               0.461+-0.248      0.169+-0.125      0.231+-0.124      0.849+-0.017      1.394+-0.030
+alpha=1.0                               0.261+-0.272      0.088+-0.060      0.131+-0.136      0.613+-0.341      1.075+-0.427
+alpha=1.5                               0.205+-0.284      0.069+-0.103      0.103+-0.142      0.418+-0.402      0.824+-0.498
+alpha=2.0                               0.065+-0.182      0.015+-0.038      0.033+-0.093      0.101+-0.305      0.421+-0.358
+============================================================================================================================
+  H3 mu_ethics        Spearman rho = -0.060  p = 6.50e-01
+  H3 lambda_altruism  Spearman rho = -0.532  p = 6.93e-05
+  H3 alpha            Spearman rho = -0.587  p = 7.36e-06
+[SAVED] /Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/plots/study_h3.png
+
+######## study: robust (10 seeds) ########
+Running 160 jobs on 9 workers...
+  8/160 jobs  elapsed   0.0 min  ETA   0.8 min
+  16/160 jobs  elapsed   0.1 min  ETA   0.7 min
+  24/160 jobs  elapsed   0.1 min  ETA   0.6 min
+  32/160 jobs  elapsed   0.1 min  ETA   0.6 min
+  40/160 jobs  elapsed   0.2 min  ETA   0.5 min
+  48/160 jobs  elapsed   0.2 min  ETA   0.5 min
+  56/160 jobs  elapsed   0.2 min  ETA   0.4 min
+  64/160 jobs  elapsed   0.3 min  ETA   0.4 min
+  72/160 jobs  elapsed   0.3 min  ETA   0.3 min
+  80/160 jobs  elapsed   0.3 min  ETA   0.3 min
+  88/160 jobs  elapsed   0.3 min  ETA   0.3 min
+  96/160 jobs  elapsed   0.4 min  ETA   0.2 min
+  104/160 jobs  elapsed   0.4 min  ETA   0.2 min
+  112/160 jobs  elapsed   0.4 min  ETA   0.2 min
+  120/160 jobs  elapsed   0.5 min  ETA   0.2 min
+  128/160 jobs  elapsed   0.5 min  ETA   0.1 min
+  136/160 jobs  elapsed   0.5 min  ETA   0.1 min
+  144/160 jobs  elapsed   0.5 min  ETA   0.1 min
+  152/160 jobs  elapsed   0.6 min  ETA   0.0 min
+  160/160 jobs  elapsed   0.6 min  ETA   0.0 min
+done in 36s
+[SAVED] /Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/data/study_robust.csv
+
+============================================================================================================================
+config                                  kills_per_ep                 W           W_joint             delta  framing_feasible
+----------------------------------------------------------------------------------------------------------------------------
+delta=0.05 mean                         0.347+-0.271      0.145+-0.128      0.174+-0.136      0.860+-0.017      1.000+-0.000
+delta=0.05 median                       0.211+-0.223      0.106+-0.112      0.106+-0.112      0.856+-0.017      0.000+-0.000
+delta=0.1 mean                          0.513+-0.363      0.231+-0.182      0.257+-0.183      0.857+-0.021      1.000+-0.000
+delta=0.1 median                        0.253+-0.211      0.129+-0.110      0.129+-0.110      0.857+-0.030      0.000+-0.000
+delta=0.15 mean                         0.441+-0.251      0.169+-0.089      0.221+-0.126      0.843+-0.015      1.000+-0.000
+delta=0.15 median                       0.327+-0.101      0.165+-0.050      0.165+-0.050      0.813+-0.069      0.000+-0.000
+delta=0.2 mean                          0.710+-0.266      0.358+-0.136      0.358+-0.136      0.849+-0.028      1.000+-0.000
+delta=0.2 median                        0.490+-0.155      0.246+-0.078      0.246+-0.078      0.852+-0.015      0.000+-0.000
+delta=0.3 mean                          1.023+-0.467      0.467+-0.239      0.513+-0.235      0.851+-0.023      1.000+-0.000
+delta=0.3 median                        0.505+-0.240      0.254+-0.122      0.254+-0.122      0.762+-0.255      0.000+-0.000
+M=7 mean                                0.805+-0.244      0.337+-0.085      0.417+-0.125      0.868+-0.035      1.000+-0.000
+M=7 median                              0.448+-0.351      0.233+-0.174      0.233+-0.174      0.772+-0.287      0.000+-0.000
+M=15 mean                               0.582+-0.275      0.215+-0.101      0.300+-0.146      0.797+-0.064      1.000+-0.000
+M=15 median                             0.204+-0.194      0.102+-0.097      0.102+-0.097      0.803+-0.033      0.000+-0.000
+B=2 mean                                0.776+-0.681      0.233+-0.245      0.388+-0.341      0.874+-0.021      1.000+-0.000
+B=2 median                              0.677+-0.508      0.339+-0.254      0.339+-0.254      0.750+-0.248      0.000+-0.000
+============================================================================================================================
+
+H1 robustness (mean > median, induced kills/episode):
+  delta=0.05   mean 0.347 vs median 0.211   p = 1.72e-01
+  delta=0.1    mean 0.513 vs median 0.253   p = 2.05e-02
+  delta=0.15   mean 0.441 vs median 0.327   p = 2.13e-01
+  delta=0.2    mean 0.710 vs median 0.490   p = 3.78e-02
+  delta=0.3    mean 1.023 vs median 0.505   p = 7.01e-03
+  M=7          mean 0.805 vs median 0.448   p = 1.87e-02
+  M=15         mean 0.582 vs median 0.204   p = 2.90e-03
+  B=2          mean 0.776 vs median 0.677   p = 5.15e-01
+[SAVED] /Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/plots/study_robust.png
+
+######## study: n4long (10 seeds) ########
+Running 40 jobs on 9 workers...
+  2/40 jobs  elapsed   1.6 min  ETA  30.8 min
+  4/40 jobs  elapsed   1.6 min  ETA  14.6 min
+  6/40 jobs  elapsed   1.6 min  ETA   9.2 min
+  8/40 jobs  elapsed   1.6 min  ETA   6.5 min
+  10/40 jobs  elapsed   3.3 min  ETA   9.8 min
+  12/40 jobs  elapsed   3.3 min  ETA   7.7 min
+  14/40 jobs  elapsed   3.3 min  ETA   6.1 min
+  16/40 jobs  elapsed   3.3 min  ETA   4.9 min
+  18/40 jobs  elapsed   3.3 min  ETA   4.0 min
+  20/40 jobs  elapsed   4.4 min  ETA   4.4 min
+  22/40 jobs  elapsed   4.4 min  ETA   3.6 min
+  24/40 jobs  elapsed   4.4 min  ETA   3.0 min
+  26/40 jobs  elapsed   5.0 min  ETA   2.7 min
+  28/40 jobs  elapsed   5.6 min  ETA   2.4 min
+  30/40 jobs  elapsed   5.6 min  ETA   1.9 min
+  32/40 jobs  elapsed   5.6 min  ETA   1.4 min
+  34/40 jobs  elapsed   5.6 min  ETA   1.0 min
+  36/40 jobs  elapsed   6.1 min  ETA   0.7 min
+  38/40 jobs  elapsed   6.5 min  ETA   0.3 min
+  40/40 jobs  elapsed   6.5 min  ETA   0.0 min
+done in 390s
+[SAVED] /Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/data/study_n4long.csv
+
+==============================================================================================================================================
+config                                  kills_per_ep self_bankr_per_ep           W_joint             delta         survivors          coverage
+----------------------------------------------------------------------------------------------------------------------------------------------
+N=4 mean Nmin=3                         0.548+-0.259      1.453+-0.259      0.274+-0.130      0.614+-0.027      1.999+-0.003      0.195+-0.000
+N=4 median Nmin=3                       0.183+-0.115      1.824+-0.114      0.093+-0.060      0.603+-0.037      1.993+-0.013      0.196+-0.001
+N=4 mean Nmin=2                         0.922+-0.339      2.081+-0.340      0.308+-0.113      0.856+-0.007      0.997+-0.005      0.171+-0.001
+N=4 median Nmin=2                       0.478+-0.221      2.524+-0.221      0.160+-0.074      0.842+-0.017      0.998+-0.004      0.169+-0.001
+==============================================================================================================================================
+  N_min=3: mean 0.548 vs median 0.183  p = 1.79e-03
+  N_min=2: mean 0.922 vs median 0.478  p = 4.55e-03
+[SAVED] /Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/plots/study_n4long.png
