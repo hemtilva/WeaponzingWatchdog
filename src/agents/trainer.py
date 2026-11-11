@@ -20,8 +20,9 @@ from src.engine.rules import (
 )
 from src.benchmarks.nash import find_discrete_nash_equilibrium
 from src.benchmarks.monopoly import find_discrete_monopoly_prices, compute_collusion_index
-from .traits import AgentTraits, compute_agent_reward
+from .traits import AgentTraits, compute_agent_reward, REWARD_EPS
 from .q_learning import QLearningConfig, StateIndexer, QLearningAgent
+from src.engine import native_sim
 
 
 # Per-firm policy identifiers
@@ -32,6 +33,8 @@ POLICY_ATTACKER = "attacker"    # scripted predator: crash price while regulated
 VALID_POLICIES = {POLICY_Q, POLICY_NASH, POLICY_RANDOM, POLICY_ATTACKER}
 
 # Legacy `agent_type` presets -> per-firm policy builder
+_POLICY_CODES = {POLICY_Q: 0, POLICY_NASH: 1, POLICY_RANDOM: 2, POLICY_ATTACKER: 3}
+
 _AGENT_TYPE_PRESETS = {
     "adaptive": lambda n: [POLICY_Q] * n,
     "honest": lambda n: [POLICY_NASH] * n,
@@ -63,6 +66,9 @@ class SimulationConfig:
     ema_beta: float = 0.95          # Memory parameter for EMA_MEAN_RATIO (0.95 retains ~20 periods of inertia)
     record_trace: bool = False      # Whether to collect per-step timeline trace
     freeze_learners: bool = False   # Q-learners act greedily (no exploration) and do not update
+    # "auto": native C++ loop when available (falls back to Python when a per-step trace
+    # is requested); "native": require it; "python": always use the reference loop.
+    backend: str = "auto"
     trace_steps: int = 200          # Number of steps to record for visualization
     seed: int = 42
 
@@ -254,7 +260,81 @@ class MultiAgentTrainer:
     # Main loop
     # ------------------------------------------------------------------
     def run(self) -> SimulationResults:
-        """Executes full simulation training and evaluation loop."""
+        """Executes the simulation (training and evaluation window). Q-tables persist across calls."""
+        backend = self.cfg.backend
+        if backend not in ("auto", "native", "python"):
+            raise ValueError(f"Unknown backend: {backend}")
+        native_ok = native_sim.is_native_sim_available()
+        if backend == "native" and not native_ok:
+            raise RuntimeError("Native simulation backend requested but engine is not built "
+                               "(run scripts/build_engine.py).")
+        if backend == "native" and self.cfg.record_trace:
+            raise ValueError("Per-step traces are only recorded by the Python backend.")
+        use_native = native_ok and backend != "python" and not self.cfg.record_trace
+        return self._run_native() if use_native else self._run_python()
+
+    # ------------------------------------------------------------------
+    # Native backend
+    # ------------------------------------------------------------------
+    def _bind_native_tables(self):
+        """Stacks the agents' Q-tables / visit counts into contiguous arrays the C++ loop
+        updates in place; each agent's arrays become views into them."""
+        if getattr(self, "_qstack", None) is not None:
+            return
+        S, M = self.indexer.num_states, self.indexer.M
+        self._qstack = np.empty((self.N, S, M), dtype=np.float32)
+        self._vstack = np.empty((self.N, S), dtype=np.int32)
+        for i, a in enumerate(self.agents):
+            self._qstack[i] = a.Q
+            self._vstack[i] = a.state_visit_counts
+            a.Q = self._qstack[i]
+            a.state_visit_counts = self._vstack[i]
+        self._native_calls = 0
+
+    def _run_native(self) -> SimulationResults:
+        self._bind_native_tables()
+        m, q = self.m_cfg, self.cfg.q_learning
+        if any(a.has_pending for a in self.agents):
+            for a in self.agents:  # transitions left open by the Python loop cannot cross backends
+                a._pending = None
+        traits = [a.traits for a in self.agents]
+        eps = np.array([a.epsilon for a in self.agents], dtype=np.float64)
+        arrays = dict(
+            price_grid=self.price_grid, costs=m.marginal_costs, qualities=m.qualities,
+            nash_prices=self.nash_prices, nash_profits=self.nash_profits,
+            nash_idx=self.nash_idx, mono_idx=self.mono_idx,
+            policies=np.array([_POLICY_CODES[p] for p in self.policies], dtype=np.int32),
+            alpha=np.array([t.alpha for t in traits]),
+            lambda_=np.array([t.lambda_altruism for t in traits]),
+            mu=np.array([t.mu_ethics for t in traits]),
+            qtab=self._qstack, visits=self._vstack, epsilon=eps,
+        )
+        scalars = dict(
+            N=self.N, M=len(self.price_grid), rule_type=int(self.cfg.rule_type),
+            penalty_mode=1 if self.cfg.penalty_mode == "escrow" else 0,
+            total_steps=self.cfg.total_steps, warmup_steps=self.cfg.warmup_steps,
+            episode_length=self.cfg.episode_length, eval_window=self.cfg.eval_window,
+            audit_budget=m.audit_budget, T_ban=m.ban_duration,
+            freeze=int(self.cfg.freeze_learners), has_cap=int(m.capital_cap is not None),
+            outside=m.outside_option, sigma=m.price_sensitivity, Q=m.market_size,
+            fixed_cost=m.fixed_cost, K0=m.initial_capital,
+            cap=float(m.capital_cap) if m.capital_cap is not None else 0.0,
+            rule_param=float(self.cfg.rule_param), ema_beta=float(self.cfg.ema_beta),
+            lr=q.learning_rate, gamma=q.gamma, eps_min=q.eps_min, eps_decay=q.eps_decay,
+            reward_eps=REWARD_EPS,
+            seed=(int(self.cfg.seed) * 1_000_003 + self._native_calls) % (2 ** 64),
+        )
+        self._native_calls += 1
+        raw = native_sim.run_native(arrays, scalars)
+        for i, a in enumerate(self.agents):
+            a.epsilon = float(eps[i])
+        return self._finalize(raw)
+
+    # ------------------------------------------------------------------
+    # Python reference backend
+    # ------------------------------------------------------------------
+    def _run_python(self) -> SimulationResults:
+        """Reference implementation of the simulation loop (mirrored by src/csrc/sim.cpp)."""
         N = self.N
         m = self.m_cfg
         cap_limit = m.capital_cap
@@ -480,32 +560,46 @@ class MultiAgentTrainer:
                     self.indexer.encode(lagged_prices, (ban_timers > 0) | (capital <= 0.0), capital[i])
                 )
 
-        # Aggregate evaluation metrics
         eval_p_arr = np.array(eval_prices)
-        eval_pi_arr = np.array(eval_profits)
-        # Average over periods in which each firm was active (inactive firms keep a stale price)
         active_counts = np.sum(~np.isnan(eval_p_arr), axis=0)
         price_sums = np.nansum(eval_p_arr, axis=0)
+        # Average over periods in which each firm was active (inactive firms keep a stale price)
         mean_p = np.where(active_counts > 0, price_sums / np.maximum(active_counts, 1), self.nash_prices)
-        mean_pi = np.mean(eval_pi_arr, axis=0)
+        return self._finalize(dict(
+            mean_prices=mean_p,
+            mean_profits=np.mean(np.array(eval_profits), axis=0),
+            mean_consumer_surplus=float(np.mean(eval_cs)),
+            eval_periods=len(eval_cs),
+            total_fresh_bans=total_fresh_bans,
+            induced_bans=induced_bans,
+            total_sanctions=total_sanctions,
+            induced_sanctions=induced_sanctions,
+            total_bankruptcies=total_bankruptcies,
+            induced_bankruptcies=induced_bankruptcies,
+            induced_by=induced_by,
+            kills_by=kills_by,
+            episodes_in_eval=episodes_in_eval,
+        ), trace_history, trace_exploit_events)
 
+    def _finalize(self, raw: Dict[str, Any], trace_history=None, exploit_events=None) -> SimulationResults:
+        """Builds SimulationResults from raw eval-window tallies (shared by both backends)."""
+        N = self.N
+        mean_pi = raw["mean_profits"]
         delta = compute_collusion_index(
             float(np.mean(mean_pi)), float(np.mean(self.nash_profits)), float(np.mean(self.mono_profits))
         )
-
         if self.cfg.penalty_mode == "escrow":
-            w_rate = (induced_sanctions / total_sanctions) if total_sanctions > 0 else 0.0
+            num, den = raw["induced_sanctions"], raw["total_sanctions"]
         else:
-            w_rate = (induced_bans / total_fresh_bans) if total_fresh_bans > 0 else 0.0
+            num, den = raw["induced_bans"], raw["total_fresh_bans"]
+        w_rate = (num / den) if den > 0 else 0.0
 
-        mean_cs = float(np.mean(eval_cs))
-        total_realized_welfare = mean_cs + float(np.sum(mean_pi))
+        mean_cs = float(raw["mean_consumer_surplus"])
         nash_welfare = self.nash_cs + float(np.sum(self.nash_profits))
-        swl = 1.0 - (total_realized_welfare / nash_welfare) if nash_welfare > 0 else 0.0
+        swl = 1.0 - ((mean_cs + float(np.sum(mean_pi))) / nash_welfare) if nash_welfare > 0 else 0.0
+        b_rate = raw["total_bankruptcies"] / (N * max(1, raw["episodes_in_eval"]))
 
-        b_rate = total_bankruptcies / (N * max(1, episodes_in_eval))
-
-        q_agents = [self.agents[i] for i in range(N) if is_q[i]]
+        q_agents = [self.agents[i] for i in range(N) if self.policies[i] == POLICY_Q]
         if q_agents:
             avg_unique = int(np.mean([a.unique_states_visited for a in q_agents]))
             avg_coverage = float(np.mean([a.state_coverage_ratio for a in q_agents]))
@@ -518,25 +612,25 @@ class MultiAgentTrainer:
             weaponization_rate=float(w_rate),
             collusion_index=float(delta),
             social_welfare_loss=float(swl),
-            mean_prices=mean_p,
-            mean_profits=mean_pi,
+            mean_prices=np.asarray(raw["mean_prices"], dtype=np.float64),
+            mean_profits=np.asarray(mean_pi, dtype=np.float64),
             bankruptcy_rate=float(min(1.0, b_rate)),
-            total_fresh_bans=total_fresh_bans,
-            induced_bans=induced_bans,
+            total_fresh_bans=int(raw["total_fresh_bans"]),
+            induced_bans=int(raw["induced_bans"]),
             unique_states_visited=avg_unique,
             state_coverage_ratio=avg_coverage,
             effective_states_visited=avg_effective,
             effective_state_coverage=avg_effective_cov,
             trace_data=trace_history,
-            exploit_events=trace_exploit_events,
-            total_sanctions=total_sanctions,
-            induced_sanctions=induced_sanctions,
-            total_bankruptcies=total_bankruptcies,
-            induced_bankruptcies=induced_bankruptcies,
-            induced_by=induced_by,
-            kills_by=kills_by,
-            episodes_in_eval=episodes_in_eval,
+            exploit_events=exploit_events or [],
+            total_sanctions=int(raw["total_sanctions"]),
+            induced_sanctions=int(raw["induced_sanctions"]),
+            total_bankruptcies=int(raw["total_bankruptcies"]),
+            induced_bankruptcies=int(raw["induced_bankruptcies"]),
+            induced_by=np.asarray(raw["induced_by"], dtype=np.int64),
+            kills_by=np.asarray(raw["kills_by"], dtype=np.int64),
+            episodes_in_eval=int(raw["episodes_in_eval"]),
             firm_policies=list(self.policies),
             mean_consumer_surplus=mean_cs,
-            eval_periods=len(eval_cs),
+            eval_periods=int(raw["eval_periods"]),
         )

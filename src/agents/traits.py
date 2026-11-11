@@ -4,6 +4,10 @@ from dataclasses import dataclass
 import numpy as np
 
 
+# Utility shift inside CRRA (keeps U finite at zero profit). Shared with the native loop.
+REWARD_EPS = 1e-2
+
+
 @dataclass
 class AgentTraits:
     """Private behavioral traits for a market seller."""
@@ -34,7 +38,7 @@ def compute_agent_reward(
     N: int,
     harm_count: int,
     traits: AgentTraits,
-    eps: float = 1e-2,
+    eps: float = REWARD_EPS,
 ) -> float:
     """Computes total per-period agent reward incorporating behavioral traits.
 
