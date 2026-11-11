@@ -29,7 +29,7 @@ from src.evaluation.stats import (
 
 class SweepArgs:
     """Mock argument container for run_parallel_sweep."""
-    def __init__(self, rule, delta=0.20, t_ban=3, k0=1.0, phi=0.10, steps=100_000, warmup=20_000, seeds=20, workers=8, output=None):
+    def __init__(self, rule, delta=0.10, t_ban=4, k0=0.15, phi=0.05, steps=100_000, warmup=20_000, seeds=20, workers=8, output=None):
         self.rule = rule
         self.delta = delta
         self.t_ban = t_ban
