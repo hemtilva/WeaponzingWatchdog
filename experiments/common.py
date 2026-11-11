@@ -13,7 +13,7 @@ import csv
 import os
 import sys
 import time
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
@@ -134,12 +134,21 @@ def default_workers() -> int:
 
 def run_jobs(jobs: Sequence[Job], workers: Optional[int] = None) -> List[Dict[str, object]]:
     workers = workers or default_workers()
-    print(f"Running {len(jobs)} jobs on {workers} workers...", flush=True)
+    n = len(jobs)
+    print(f"Running {n} jobs on {workers} workers...", flush=True)
     t0 = time.time()
+    rows: List[Optional[Dict[str, object]]] = [None] * n
+    report_every = max(1, n // 20)
     with ProcessPoolExecutor(max_workers=workers) as ex:
-        rows = list(ex.map(run_job, jobs, chunksize=1))
+        futures = {ex.submit(run_job, job): i for i, job in enumerate(jobs)}
+        for done, fut in enumerate(as_completed(futures), start=1):
+            rows[futures[fut]] = fut.result()
+            if done % report_every == 0 or done == n:
+                el = time.time() - t0
+                eta = el / done * (n - done)
+                print(f"  {done}/{n} jobs  elapsed {el / 60:5.1f} min  ETA {eta / 60:5.1f} min", flush=True)
     print(f"done in {time.time() - t0:.0f}s", flush=True)
-    return rows
+    return rows  # in job order
 
 
 def save_csv(rows: List[Dict[str, object]], name: str) -> Path:
