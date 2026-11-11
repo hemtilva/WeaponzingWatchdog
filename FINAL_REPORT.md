@@ -249,6 +249,32 @@ Q_t = Q × max{ 0,  1 + ψ I(mean_p_t > mean_p_{t-1}) + ξ_t }
 - Evaluated across Ethical (all μ = 1.0), Predatory (all μ = 0.0), and Mixed cohorts across ψ ∈ {0.0, 0.25, 0.50, 0.75}.
 - **Finding:** Social welfare scales with panic volume (from **2.11** at ψ = 0.00 to **2.89** at ψ = 0.75). The periodic reset mechanism preserves market solvency, while ethical cohorts sustain lower bankruptcy frequencies than pure predatory cohorts.
 
+### 7.3 Extension C: Defended Watchdog (EMA Smoothing & Escrow Penalty Defense)
+In [defended_watchdog_comparison.png](file:///Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/plots/defended_watchdog_comparison.png), we evaluate two regulatory defenses designed to neutralize predatory framing:
+1. **Exponential Moving Average (EMA) Reference Price Benchmark:**
+   ```text
+   r_t = β r_{t-1} + (1 - β) mean(p_t)
+   ```
+   Under the vulnerable vanilla mean rule (β = 0.0), a scripted attacker achieves W = **1.0000** with **33.0** induced bans. Adding memory inertia (β = 0.85) slashes bans to **6.0**. At β ≥ 0.90 (e.g. β = 0.95), historical price inertia completely buffers single-period predatory crashes: innocent rivals are never flagged, achieving complete immunization (W = **0.0000**, fresh bans = **0.0**).
+2. **Graduated Escrow Penalty Defense:**
+   Rather than executing market shutdowns, audited flagged firms remain active, and excess profits above Bertrand-Nash are diverted to escrow:
+   ```text
+   penalized_profit_i = min(profit_i, nash_profit_i)
+   ```
+   Because rivals remain operational to clear demand, the attacker never secures monopoly rents. Predatory undercutting becomes self-destructive, and shutdown-induced bankruptcies drop to **0.00%**.
+
+### 7.4 Extension D: Deep RL / DQN Continuous Scalability Ablation (N = 5)
+In [dqn_continuous_ablation.png](file:///Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/plots/dqn_continuous_ablation.png), we deploy a Deep Q-Network (DQN) with continuous state representations `[p_t / p_max, b_t, K_t / K0]` (input dim = 2N + 1) to evaluate continuous scalability:
+- In discrete tabular Q-learning, the state space scales exponentially: N = 3 has 10,976 states, N = 4 has 115,248 states, and N = 5 explodes to **1,613,472 states** (|S| = 7^5 × 2^5 × 3), rendering tabular convergence computationally intractable due to severe exploration sparsity.
+- DQN compresses the state space to an **11-dimensional continuous vector** for N = 5.
+- **Empirical Finding:** Under neural function approximation, predatory framing remains a significant hazard under the Mean-Ratio rule (W = **0.075**, **67** bans), but is strongly suppressed under Median-Ratio (W = **0.013**, **78** bans), proving that watchdog weaponization is an intrinsic architectural flaw of relative benchmark design, not merely an artifact of tabular discretization.
+
+### 7.5 Extension E: Evolutionary Strategy Tournament & Ecological Dynamics
+In [evolutionary_tournament_dynamics.png](file:///Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/plots/evolutionary_tournament_dynamics.png), we simulate an Axelrod-style multi-generation tournament across 4 seller archetypes (Pure Predator μ=0, Ethical μ=1, Altruist λ=0.5, Risk-Averse α=1.5) governed by discrete Replicator Dynamics:
+- **Vulnerable Watchdog (Mean-Ratio):** The Predator archetype capitalizes on weaponization, maintaining a dominant market share (**26.1%**) while suppressing Ethical sellers to **14.7%**.
+- **Robust Watchdog (Median-Ratio):** Without framing leverage, the Predator's advantage declines (**19.5%**), while Risk-Averse sellers expand to **45.3%** by avoiding aggressive price wars.
+- **Defended Watchdog (EMA + Escrow):** The cooperative regime stabilizes completely: Altruists become the dominant archetype (**39.6%**), supported by Risk-Averse sellers (**30.0%**), demonstrating that robust mechanism design fosters evolutionary selection toward prosocial equilibria.
+
 ---
 
 ## 8. Policy & Mechanism Design Recommendations
