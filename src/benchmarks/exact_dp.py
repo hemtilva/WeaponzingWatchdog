@@ -35,7 +35,6 @@ class DPSolverConfig:
     quality: float = 2.0
     outside_option: float = 0.0
     sigma_d: float = 0.25
-    price_sensitivity: float = 0.25
     market_size: float = 1.0
     fixed_cost: float = 0.2
     T_ban: int = 3
@@ -50,6 +49,45 @@ class DPSolverConfig:
     alpha: float = 0.0          # Risk-neutral
     lambda_altruism: float = 0.0 # Purely selfish
     mu_ethics: float = 0.0       # Pure predator
+
+    @classmethod
+    def from_market(
+        cls,
+        market,
+        price_grid: np.ndarray,
+        rule_type: RuleType = RuleType.MEAN_RATIO,
+        rule_param: Optional[float] = None,
+        gamma: float = 0.95,
+        **overrides,
+    ) -> "DPSolverConfig":
+        """Builds a DP config with the same economics as a (symmetric, N=3) MarketConfig.
+
+        The capital grid runs 0, Phi, 2*Phi, ... up to the reserve cap (or K0), so the
+        grid's top level plays the role of `capital_cap`, and a full ban moves capital
+        by exactly one grid step per period.
+        """
+        if market.num_firms != 3:
+            raise ValueError("The exact DP solver supports N = 3 only.")
+        top = market.capital_cap if market.capital_cap is not None else market.initial_capital
+        n_levels = int(round(top / market.fixed_cost)) + 1
+        kwargs = dict(
+            num_firms=3,
+            price_grid=np.asarray(price_grid, dtype=np.float64),
+            marginal_cost=float(market.marginal_costs[0]),
+            quality=float(market.qualities[0]),
+            outside_option=market.outside_option,
+            sigma_d=market.price_sensitivity,
+            market_size=market.market_size,
+            fixed_cost=market.fixed_cost,
+            T_ban=market.ban_duration,
+            audit_budget=market.audit_budget,
+            rule_type=rule_type,
+            rule_param=market.threshold_delta if rule_param is None else rule_param,
+            capital_levels=np.arange(n_levels, dtype=np.float64) * market.fixed_cost,
+            gamma=gamma,
+        )
+        kwargs.update(overrides)
+        return cls(**kwargs)
 
 
 class ExactDPSolver:
@@ -190,7 +228,7 @@ class ExactDPSolver:
                                         p_joint = self.nash_prices.copy()
                                         shares = compute_market_shares(
                                             p_joint, self.qualities, active_mask,
-                                            self.cfg.outside_option, self.cfg.price_sensitivity
+                                            self.cfg.outside_option, self.cfg.sigma_d
                                         )
                                         profits = compute_profits(p_joint, self.costs, shares, self.cfg.market_size, active_mask)
                                         next_cap = update_capital(cap, profits, self.cfg.fixed_cost)
@@ -237,7 +275,7 @@ class ExactDPSolver:
                                             p_joint = np.array([p1, self.nash_prices[1], self.nash_prices[2]], dtype=np.float64)
                                             shares = compute_market_shares(
                                                 p_joint, self.qualities, active_mask,
-                                                self.cfg.outside_option, self.cfg.price_sensitivity
+                                                self.cfg.outside_option, self.cfg.sigma_d
                                             )
                                             profits = compute_profits(p_joint, self.costs, shares, self.cfg.market_size, active_mask)
                                             next_cap = update_capital(cap, profits, self.cfg.fixed_cost)
@@ -312,10 +350,19 @@ class ExactDPSolver:
         # Approximate infinite-horizon honest competitive value
         shares = compute_market_shares(
             self.nash_prices, self.qualities, np.ones(self.N, dtype=np.int32),
-            self.cfg.outside_option, self.cfg.price_sensitivity
+            self.cfg.outside_option, self.cfg.sigma_d
         )
         nash_profit = compute_profits(self.nash_prices, self.costs, shares, self.cfg.market_size)[0]
-        # At Nash, no bans are triggered, capital remains stable if profit >= fixed_cost
-        v_honest = (nash_profit / self.cfg.market_size) / (1.0 - self.cfg.gamma)
+        r = nash_profit / self.cfg.market_size
+        g = self.cfg.gamma
+        # At Nash no bans are triggered. If Nash profit covers the fixed cost, the honest
+        # firm earns r forever. Otherwise its capital runs down and it exits after T
+        # periods; valuing that as a perpetuity would overstate the honest baseline.
+        net_loss = self.cfg.fixed_cost - nash_profit
+        if net_loss <= 1e-12:
+            v_honest = r / (1.0 - g)
+        else:
+            T = int(np.ceil(self.capital_levels[k0_idx] / net_loss))
+            v_honest = r * (1.0 - g ** T) / (1.0 - g)
 
         return float(v_opt - v_honest)

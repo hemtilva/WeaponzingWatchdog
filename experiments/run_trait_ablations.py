@@ -12,6 +12,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.engine.market import MarketConfig
+from src.benchmarks.diagnostics import framing_market
 from src.engine.rules import RuleType
 from src.agents.traits import AgentTraits
 from src.agents.q_learning import QLearningConfig
@@ -35,13 +36,13 @@ def run_single_trait_seed(
     trait_val: float,
 ) -> dict:
     """Runs a single simulation seed with specified trait vector."""
-    m_cfg = MarketConfig(
+    # Viable market (Nash profit 0.10 > phi for the defaults) with the reserve capped at K0
+    m_cfg = framing_market(
         num_firms=3,
-        price_sensitivity=0.25,
+        threshold_delta=delta,
+        ban_duration=t_ban,
         fixed_cost=phi,
         initial_capital=k0,
-        ban_duration=t_ban,
-        threshold_delta=delta,
     )
     q_cfg = QLearningConfig(
         learning_rate=0.10,
@@ -114,10 +115,10 @@ def run_trait_ablation_sweep(
 
     tasks = []
     rule_type = RuleType.MEAN_RATIO
-    delta = 0.20
-    t_ban = 3
-    k0 = 1.0
-    phi = 0.10
+    delta = 0.10
+    t_ban = 4
+    k0 = 0.15
+    phi = 0.05
 
     max_cpu = min(workers, os.cpu_count() or 4)
     results = []

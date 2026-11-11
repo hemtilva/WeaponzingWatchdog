@@ -29,9 +29,12 @@ def _load_native_library() -> Optional[ctypes.CDLL]:
         # On Windows, add potential compiler runtime DLL directories
         if system == "Windows" and hasattr(os, "add_dll_directory"):
             os.add_dll_directory(str(csrc_dir))
-            msys_bin = Path(r"C:\msys64\clangarm64\bin")
-            if msys_bin.is_dir():
-                os.add_dll_directory(str(msys_bin))
+            # OpenMP runtime (libgomp-1.dll / libomp.dll) from the MSYS2 toolchain
+            msys_root = Path(os.environ.get("MSYS2_ROOT", r"C:\msys64"))
+            for env_name in ("clangarm64", "ucrt64", "mingw64", "clang64"):
+                msys_bin = msys_root / env_name / "bin"
+                if msys_bin.is_dir():
+                    os.add_dll_directory(str(msys_bin))
 
         dll = ctypes.CDLL(str(lib_path))
 

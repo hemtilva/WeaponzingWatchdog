@@ -1,20 +1,28 @@
 """Extension A: Slow-Timescale Adaptive Regulator.
 
-Operates over macro-epochs K_macro >> 1 based on history features H_t
-(price dispersion, ban frequency, price drift) to dynamically optimize threshold delta:
-max_phi E[ sum_t gamma_R^t (CS(p_t) - kappa * |Aud_t| - eta * FP_t) ].
+Bi-level dynamics. On the fast timescale a learning attacker (tabular Q-learner)
+prices against honest Nash rivals under the current rule. On the slow timescale,
+once per macro-epoch, the regulator adjusts the threshold delta from what it
+actually observed in that epoch:
+
+  * false positives  = sanctions of firms whose flag was caused by a rival's
+                       deviation (induced sanctions) -> threshold too tight, loosen
+  * price dispersion = spread of firms' prices -> evidence of outliers, tighten
+
+Objective reported per epoch: R = mean(CS) - kappa * audits/period - eta * FP/period.
+The attacker's Q-table persists across epochs, so it re-adapts to each new delta.
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, Any, List, Tuple, Optional
+from dataclasses import dataclass
+from typing import Dict, Any, List, Optional
 import numpy as np
 
-from src.engine.rules import RuleType, evaluate_rules, sample_audit_set, update_ban_timers, compute_counterfactual_harm
-from src.engine.market import compute_market_shares, compute_profits, compute_consumer_surplus
-from src.engine.capital import update_capital
+from src.engine.market import MarketConfig
+from src.engine.rules import RuleType
 from src.benchmarks.exact_dp import DPSolverConfig, ExactDPSolver
-from src.agents.traits import AgentTraits, compute_agent_reward
-from src.agents.q_learning import QLearningConfig, QLearningAgent
+from src.benchmarks.diagnostics import framing_market
+from src.agents.q_learning import QLearningConfig
+from src.agents.trainer import SimulationConfig, MultiAgentTrainer
 
 
 @dataclass
@@ -28,6 +36,8 @@ class AdaptiveRegulatorConfig:
     audit_cost_kappa: float = 0.05    # Cost per audit
     fp_penalty_eta: float = 0.25      # Penalty for false positive innocent bans
     gamma_regulator: float = 0.95
+    fp_weight: float = 2.0            # Loosening pressure per false positive per period
+    dispersion_weight: float = 0.10   # Tightening pressure per unit of price dispersion
 
 
 class SlowTimescaleRegulator:
@@ -37,10 +47,9 @@ class SlowTimescaleRegulator:
         self.cfg = config
         self.current_delta = float(config.delta_init)
 
-        # Macro-epoch metrics accumulation
         self.epoch_cs: List[float] = []
-        self.epoch_audits: List[int] = []
-        self.epoch_false_positives: List[int] = []
+        self.epoch_audits: List[float] = []
+        self.epoch_false_positives: List[float] = []
         self.epoch_dispersions: List[float] = []
         self.history_deltas: List[float] = [self.current_delta]
         self.history_objectives: List[float] = []
@@ -52,16 +61,29 @@ class SlowTimescaleRegulator:
         prices: np.ndarray,
         false_positive_count: int = 0,
     ):
-        """Records per-period marketplace outcomes."""
-        self.epoch_cs.append(consumer_surplus)
-        self.epoch_audits.append(num_audited)
-        self.epoch_false_positives.append(false_positive_count)
+        """Records one period's marketplace outcomes."""
+        self.epoch_cs.append(float(consumer_surplus))
+        self.epoch_audits.append(float(num_audited))
+        self.epoch_false_positives.append(float(false_positive_count))
         self.epoch_dispersions.append(float(np.std(prices)))
 
-    def step_macro_epoch(self) -> float:
-        """Evaluates macro-epoch objective and applies policy gradient / bandit step.
+    def observe_epoch(
+        self,
+        mean_consumer_surplus: float,
+        audits_per_period: float,
+        false_positives_per_period: float,
+        mean_dispersion: float,
+    ):
+        """Records an epoch's per-period averages (equivalent to many observe_period calls)."""
+        self.epoch_cs.append(float(mean_consumer_surplus))
+        self.epoch_audits.append(float(audits_per_period))
+        self.epoch_false_positives.append(float(false_positives_per_period))
+        self.epoch_dispersions.append(float(mean_dispersion))
 
-        Objective: R_R = mean(CS) - kappa * mean(Aud) - eta * mean(FP).
+    def step_macro_epoch(self) -> float:
+        """Evaluates the epoch objective and moves delta.
+
+        gradient = fp_weight * FP/period - dispersion_weight * dispersion
         """
         if len(self.epoch_cs) == 0:
             return self.current_delta
@@ -74,15 +96,11 @@ class SlowTimescaleRegulator:
         regulator_obj = avg_cs - self.cfg.audit_cost_kappa * avg_aud - self.cfg.fp_penalty_eta * avg_fp
         self.history_objectives.append(regulator_obj)
 
-        # Gradient heuristic:
-        # If false positives are high, threshold is too tight -> increase delta.
-        # If price dispersion is low and FP is low, tighten threshold to protect consumers -> decrease delta.
-        gradient = (avg_fp * 2.0) - (0.10 * avg_disp)
+        gradient = self.cfg.fp_weight * avg_fp - self.cfg.dispersion_weight * avg_disp
         updated_delta = self.current_delta + self.cfg.learning_rate * gradient
         self.current_delta = float(np.clip(updated_delta, self.cfg.delta_min, self.cfg.delta_max))
         self.history_deltas.append(self.current_delta)
 
-        # Clear accumulation buffers for next epoch
         self.epoch_cs.clear()
         self.epoch_audits.clear()
         self.epoch_false_positives.clear()
@@ -98,10 +116,10 @@ def evaluate_checkpoint_exploitability(
     k0_val: float = 0.60,
     rule_type: RuleType = RuleType.MEAN_RATIO,
 ) -> Dict[str, Any]:
-    """Computes exact best-response exploitability gain against a frozen regulator checkpoint.
+    """Exact best-response exploitability gain against a frozen regulator checkpoint (N = 3).
 
-    Returns:
-        Dictionary containing exploitability gain, optimal price, Nash price, and framing indicator.
+    Uses the pure-Python DP fallback unless the native engine is compiled; that is
+    slow (minutes), so callers in loops should make it optional.
     """
     price_grid = np.array([1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5], dtype=np.float64)
     capital_levels = np.arange(7, dtype=np.float64) * fixed_cost
@@ -132,14 +150,30 @@ def evaluate_checkpoint_exploitability(
     opt_action_idx = policy[0, 0, 0, k0_idx, k0_idx, k0_idx]
     opt_p = float(price_grid[opt_action_idx])
     nash_p = float(solver.nash_prices[0])
-    is_framing = bool(opt_p < nash_p)
 
     return {
         "frozen_delta": float(frozen_delta),
         "exploitability_gain": float(gain),
         "optimal_price": opt_p,
         "nash_price": nash_p,
-        "is_framing": is_framing,
+        "is_framing": bool(opt_p < nash_p),
+    }
+
+
+def _attacker_summary(trainer: MultiAgentTrainer, res, frozen_delta: float) -> Dict[str, Any]:
+    nash_p = float(trainer.nash_prices[0])
+    return {
+        "frozen_delta": float(frozen_delta),
+        "attacker_mean_price": float(res.mean_prices[0]),
+        "nash_price": nash_p,
+        "attacker_mean_profit": float(res.mean_profits[0]),
+        "nash_profit": float(trainer.nash_profits[0]),
+        "weaponization_rate": float(res.weaponization_rate),
+        "total_fresh_bans": int(res.total_fresh_bans),
+        "induced_bans": int(res.induced_bans),
+        "induced_bankruptcies": int(res.induced_bankruptcies),
+        "kills_per_episode": float(res.kills_by[0]) / max(1, res.episodes_in_eval),
+        "framing_detected": bool(res.kills_by[0] > 0 and res.mean_prices[0] < nash_p),
     }
 
 
@@ -147,200 +181,103 @@ def train_adversarial_attacker(
     frozen_delta: float,
     steps: int = 20_000,
     episode_length: int = 500,
-    t_ban: int = 3,
-    fixed_cost: float = 0.20,
-    k0: float = 0.60,
+    market: Optional[MarketConfig] = None,
     seed: int = 42,
     rule_type: RuleType = RuleType.MEAN_RATIO,
+    q_config: Optional[QLearningConfig] = None,
 ) -> Dict[str, Any]:
-    """Trains a decentralized tabular Q-learning attacker against honest opponents.
-
-    Firm 0 is an adaptive attacker with greedy predatory traits (mu=0, lambda=0, alpha=0).
-    Firms 1 and 2 are honest opponents fixed to competitive Bertrand-Nash pricing.
-    """
-    rng = np.random.default_rng(seed)
-    price_grid = np.linspace(1.0, 2.5, 11, dtype=np.float64)
-    N = 3
-
-    # Theoretical benchmarks
-    from src.benchmarks.nash import find_discrete_nash_equilibrium
-    costs = np.full(N, 1.0, dtype=np.float64)
-    qualities = np.full(N, 2.0, dtype=np.float64)
-    nash_prices, nash_profits = find_discrete_nash_equilibrium(
-        price_grid, costs, qualities, outside_option=0.0, sigma_d=0.25, Q=1.0
+    """Trains a Q-learning attacker (firm 0) against honest Nash-pricing rivals under a frozen delta."""
+    market = market or framing_market(num_firms=3, lethal=True, threshold_delta=frozen_delta)
+    cfg = SimulationConfig(
+        market=market,
+        q_learning=q_config or QLearningConfig(),
+        total_steps=steps,
+        warmup_steps=0,
+        episode_length=episode_length,
+        rule_type=rule_type,
+        rule_param=frozen_delta,
+        eval_window=max(2_000, steps // 4),
+        agent_type="learner_vs_honest",
+        seed=seed,
     )
-
-    q_cfg = QLearningConfig(
-        learning_rate=0.10,
-        gamma=0.95,
-        eps_start=1.0,
-        eps_min=0.01,
-        eps_decay=0.9998,
-        fixed_cost=fixed_cost,
-    )
-    attacker = QLearningAgent(
-        agent_id=0,
-        price_grid=price_grid,
-        config=q_cfg,
-        traits=AgentTraits(alpha=0.0, lambda_altruism=0.0, mu_ethics=0.0),
-    )
-
-    capital = np.full(N, k0, dtype=np.float64)
-    ban_timers = np.zeros(N, dtype=np.int32)
-    lagged_prices = nash_prices.copy()
-
-    eval_window = max(2_000, steps // 4)
-    eval_start = steps - eval_window
-    eval_attacker_prices = []
-    eval_attacker_profits = []
-    total_fresh_bans = 0
-    induced_bans = 0
-    episode_step = 0
-
-    for step in range(steps):
-        active_mask = np.array([
-            1 if (ban_timers[i] == 0 and capital[i] > 0.0) else 0
-            for i in range(N)
-        ], dtype=np.int32)
-
-        # Attacker action
-        s0 = attacker.indexer.encode(lagged_prices, ban_timers > 0, capital[0])
-        if active_mask[0] != 0:
-            a0 = attacker.select_action(s0, rng)
-            p0 = price_grid[a0]
-        else:
-            a0 = 0
-            p0 = price_grid[0]
-
-        # Honest rivals always play Bertrand-Nash
-        chosen_prices = np.array([p0, nash_prices[1], nash_prices[2]], dtype=np.float64)
-
-        shares = compute_market_shares(chosen_prices, qualities, active_mask, outside_option=0.0, sigma_d=0.25)
-        profits = compute_profits(chosen_prices, costs, shares, Q=1.0, active_mask=active_mask)
-        cs = compute_consumer_surplus(chosen_prices, qualities, active_mask, outside_option=0.0, sigma_d=0.25, Q=1.0)
-
-        flags = np.zeros(N, dtype=np.int32)
-        audited = np.zeros(N, dtype=np.int32)
-        harm = np.zeros(N, dtype=np.int32)
-
-        num_active = int(np.sum(active_mask))
-        if num_active >= 3:
-            flags = evaluate_rules(chosen_prices, active_mask, rule_type, frozen_delta)
-            audited = sample_audit_set(active_mask, audit_budget=1, rng=rng)
-            harm = compute_counterfactual_harm(chosen_prices, nash_prices, active_mask, audited, rule_type, frozen_delta)
-
-        fresh_bans = (audited != 0) & (flags != 0) & (ban_timers == 0)
-        next_timers = update_ban_timers(ban_timers, flags, audited, t_ban)
-        next_capital = update_capital(capital, profits, fixed_cost)
-
-        # Update attacker
-        other_p = float(np.sum(profits[1:]))
-        r0 = compute_agent_reward(profits[0], Q=1.0, CS=cs, other_profits_sum=other_p, N=N, harm_count=harm[0], traits=attacker.traits)
-        s0_next = attacker.indexer.encode(chosen_prices, next_timers > 0, next_capital[0])
-        if active_mask[0] != 0:
-            attacker.update(s0, a0, r0, s0_next, done=next_capital[0] <= 0.0)
-        attacker.decay_epsilon()
-
-        if step >= eval_start:
-            eval_attacker_prices.append(float(p0))
-            eval_attacker_profits.append(float(profits[0]))
-            for j in np.where(fresh_bans)[0]:
-                total_fresh_bans += 1
-                if harm[0] > 0 and j != 0:
-                    induced_bans += 1
-
-        capital = next_capital
-        ban_timers = next_timers
-        lagged_prices = chosen_prices
-        episode_step += 1
-
-        # Periodic episode reset
-        active_next = np.sum([1 if (ban_timers[i] == 0 and capital[i] > 0.0) else 0 for i in range(N)])
-        if episode_step >= episode_length or active_next <= 1:
-            capital = np.full(N, k0, dtype=np.float64)
-            ban_timers = np.zeros(N, dtype=np.int32)
-            lagged_prices = nash_prices.copy()
-            episode_step = 0
-
-    mean_p0 = float(np.mean(eval_attacker_prices)) if eval_attacker_prices else float(nash_prices[0])
-    mean_prof0 = float(np.mean(eval_attacker_profits)) if eval_attacker_profits else float(nash_profits[0])
-    w_rate = (induced_bans / total_fresh_bans) if total_fresh_bans > 0 else 0.0
-
-    return {
-        "frozen_delta": float(frozen_delta),
-        "attacker_mean_price": mean_p0,
-        "nash_price": float(nash_prices[0]),
-        "attacker_mean_profit": mean_prof0,
-        "nash_profit": float(nash_profits[0]),
-        "weaponization_rate": float(w_rate),
-        "total_fresh_bans": total_fresh_bans,
-        "induced_bans": induced_bans,
-        "framing_detected": bool(mean_p0 < nash_prices[0] - 0.05),
-    }
+    trainer = MultiAgentTrainer(cfg)
+    res = trainer.run()
+    return _attacker_summary(trainer, res, frozen_delta)
 
 
 def simulate_bi_level_dynamics(
     num_epochs: int = 12,
-    steps_per_epoch: int = 1500,
-    delta_init: float = 0.20,
+    steps_per_epoch: int = 20_000,
+    delta_init: float = 0.10,
     seed: int = 42,
+    market: Optional[MarketConfig] = None,
+    regulator_config: Optional[AdaptiveRegulatorConfig] = None,
+    pretrain_steps: int = 0,
+    q_config: Optional[QLearningConfig] = None,
+    use_dp: bool = False,
 ) -> Dict[str, Any]:
-    """Simulates co-evolution of the adaptive regulator and measures checkpoint exploitability.
+    """Co-evolves a persistent learning attacker and the slow-timescale regulator.
 
-    Demonstrates cyclic dynamics:
-    Watchdog tightens threshold -> Attacker gains leverage -> False positives surge ->
-    Watchdog loosens threshold -> Attacker loses leverage -> Watchdog re-tightens.
+    Each epoch runs `steps_per_epoch` market periods at the current delta, measures
+    false positives (induced sanctions) and price dispersion, then updates delta.
+    `pretrain_steps` lets the attacker learn at delta_init before the regulator moves.
     """
-    reg_cfg = AdaptiveRegulatorConfig(
+    reg_cfg = regulator_config or AdaptiveRegulatorConfig(
         macro_epoch=steps_per_epoch,
         delta_init=delta_init,
-        delta_min=0.08,
-        delta_max=0.55,
+        delta_min=0.05,
+        delta_max=0.60,
         learning_rate=0.04,
-        audit_cost_kappa=0.05,
-        fp_penalty_eta=0.30,
     )
     regulator = SlowTimescaleRegulator(reg_cfg)
-    rng = np.random.default_rng(seed)
+    market = market or framing_market(num_firms=3, lethal=True, threshold_delta=delta_init)
+
+    sim_cfg = SimulationConfig(
+        market=market,
+        q_learning=q_config or QLearningConfig(),
+        total_steps=max(1, pretrain_steps),
+        warmup_steps=0,
+        episode_length=500,
+        rule_type=RuleType.MEAN_RATIO,
+        rule_param=regulator.current_delta,
+        eval_window=max(1, pretrain_steps),
+        agent_type="learner_vs_honest",
+        seed=seed,
+    )
+    trainer = MultiAgentTrainer(sim_cfg)
+    if pretrain_steps > 0:
+        trainer.run()
 
     records = []
-    prices_base = np.array([1.5, 1.8, 2.0], dtype=np.float64)
-
     for ep in range(num_epochs):
         cur_delta = regulator.current_delta
+        trainer.cfg.rule_param = cur_delta
+        trainer.cfg.total_steps = steps_per_epoch
+        trainer.cfg.eval_window = steps_per_epoch
+        res = trainer.run()
 
-        # Evaluate exact exploitability gain at this frozen checkpoint
-        eval_res = evaluate_checkpoint_exploitability(frozen_delta=cur_delta)
-
-        # Simulate marketplace periods under this checkpoint
-        # When delta is tight (cur_delta < 0.25), innocent price variation causes false positives
-        for _ in range(steps_per_epoch):
-            # Dynamic market observations with noise
-            noise = rng.normal(0.0, 0.05, size=3)
-            p_noisy = np.clip(prices_base + noise, 1.0, 2.5)
-
-            # Check if relative price variation trips tight threshold
-            r_t = np.mean(p_noisy)
-            flags = p_noisy > (1.0 + cur_delta) * r_t
-            fp = int(np.sum(flags)) if eval_res["is_framing"] or (cur_delta < 0.20) else 0
-
-            regulator.observe_period(
-                consumer_surplus=1.25,
-                num_audited=1,
-                prices=p_noisy,
-                false_positive_count=fp,
-            )
-
+        periods = max(1, res.eval_periods)
+        fp_rate = res.induced_sanctions / periods
+        audit_rate = market.audit_budget * 1.0
+        dispersion = float(np.std(res.mean_prices))
+        regulator.observe_epoch(res.mean_consumer_surplus, audit_rate, fp_rate, dispersion)
         new_delta = regulator.step_macro_epoch()
-        records.append({
+
+        rec = _attacker_summary(trainer, res, cur_delta)
+        rec.update({
             "epoch": ep,
             "delta": cur_delta,
             "new_delta": new_delta,
-            "exploitability_gain": eval_res["exploitability_gain"],
-            "is_framing": eval_res["is_framing"],
-            "optimal_price": eval_res["optimal_price"],
-            "nash_price": eval_res["nash_price"],
+            "regulator_objective": regulator.history_objectives[-1],
+            "false_positives_per_period": fp_rate,
+            "price_dispersion": dispersion,
+            "epsilon": float(trainer.agents[0].epsilon),
         })
+        if use_dp:
+            dp = evaluate_checkpoint_exploitability(frozen_delta=cur_delta)
+            rec["exploitability_gain"] = dp["exploitability_gain"]
+            rec["dp_is_framing"] = dp["is_framing"]
+        records.append(rec)
 
     return {
         "epochs": records,

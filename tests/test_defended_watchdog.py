@@ -114,6 +114,10 @@ def test_escrow_defense_prevents_insolvency():
     # Under escrow, shutdown bans drop to 0; innocent rivals are never excluded
     assert res_escrow.total_fresh_bans == 0
     assert res_escrow.induced_bans == 0
+    # Sanctions are still measured, so W is not trivially zero under escrow
+    assert res_escrow.total_sanctions > 0
+    assert res_escrow.induced_sanctions > 0
+    assert res_escrow.weaponization_rate > 0.0
     # Innocent rivals maintain positive operating viability
     assert np.all(res_escrow.mean_profits[1:] > 0.0)
 

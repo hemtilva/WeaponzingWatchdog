@@ -22,6 +22,13 @@ class MarketConfig:
     ban_duration: int = 3            # T_ban
     audit_budget: int = 1            # B
     threshold_delta: float = 0.2     # delta
+    # Maximum capital reserve. Profit above the cap is paid out (dividends), so the
+    # buffer stays bounded and K0/Phi remains the relevant lethality ratio across a
+    # long episode. None = unbounded accumulation (original behaviour).
+    capital_cap: Optional[float] = None
+    # N_min: the watchdog audits only while at least this many firms are active.
+    # With the default 3, a market reduced to 2 firms is unregulated.
+    min_active_for_audit: int = 3
 
     def __post_init__(self):
         if self.marginal_costs is None or len(self.marginal_costs) != self.num_firms:

@@ -107,3 +107,20 @@ def test_demand_shock_cohort_simulation():
     assert res_ethical["cohort"] == "ethical"
     assert res_predatory["cohort"] == "predatory"
     assert res_ethical["mean_market_size"] > 0.0
+
+
+def test_train_adversarial_attacker_runs():
+    """Regression: this used to raise TypeError (wrong QLearningAgent constructor args)."""
+    from src.extensions.learning_regulator import train_adversarial_attacker
+    res = train_adversarial_attacker(frozen_delta=0.10, steps=3000, episode_length=300, seed=1)
+    for key in ("attacker_mean_price", "weaponization_rate", "induced_bankruptcies", "kills_per_episode"):
+        assert key in res
+
+
+def test_bi_level_dynamics_uses_real_market():
+    out = simulate_bi_level_dynamics(num_epochs=2, steps_per_epoch=1500, delta_init=0.10, seed=3)
+    assert len(out["epochs"]) == 2
+    assert len(out["history_deltas"]) == 3
+    for rec in out["epochs"]:
+        assert rec["false_positives_per_period"] >= 0.0
+        assert 0.05 <= rec["new_delta"] <= 0.60

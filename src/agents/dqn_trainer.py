@@ -133,7 +133,7 @@ class DQNTrainer:
 
             # 1. Continuous state encoding
             current_states = [
-                self.encoder.encode(lagged_prices, ban_timers > 0, capital[i])
+                self.encoder.encode(lagged_prices, (ban_timers > 0) | (capital <= 0.0), capital[i])
                 for i in range(self.N)
             ]
 
@@ -240,7 +240,7 @@ class DQNTrainer:
                 )
 
                 next_state_i = self.encoder.encode(
-                    chosen_prices, next_timers > 0, next_capital[i]
+                    chosen_prices, (next_timers > 0) | (next_capital <= 0.0), next_capital[i]
                 )
                 is_bankrupt = next_capital[i] <= 0.0
 
