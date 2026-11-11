@@ -148,3 +148,30 @@ def test_firm_policies_validation():
         MultiAgentTrainer(SimulationConfig(
             market=framing_market(num_firms=3), firm_policies=["q", "nash", "bogus"],
         ))
+
+
+# ---------------------------------------------------------------- coalition framing
+def test_coalition_framing_is_attributed():
+    """Two undercutters jointly frame a Nash-priced firm (seen in all-learner traces).
+
+    Prices (0.30, 0.00, 0.15), mean rule delta=0.10: firm 0 at Nash is flagged
+    (0.30 > 1.1 * 0.15). Resetting either undercutter alone leaves it flagged, so the
+    unilateral test finds no inducer; resetting both clears it, so the joint test does.
+    """
+    cfg = SimulationConfig(market=framing_market(num_firms=3, lethal=True, threshold_delta=0.10),
+                           rule_param=0.10, backend="python")
+    tr = MultiAgentTrainer(cfg)
+    prices = np.array([0.30, 0.00, 0.15])
+    active = np.ones(3, dtype=np.int32)
+    ema = float(np.mean(tr.nash_prices))
+    assert tr._find_inducer(0, prices, active, ema) == -1
+    assert tr._find_joint_inducer(0, prices, active, ema) == 1  # furthest below Nash
+
+
+def test_n_min_controls_regulation():
+    """With N_min = 2 the rule keeps auditing a 2-firm market; with 3 it switches off."""
+    from src.engine.rules import evaluate_rules
+    p = np.array([0.30, 1.20])
+    act = np.ones(2, dtype=np.int32)
+    assert evaluate_rules(p, act, RuleType.MEAN_RATIO, 0.10, min_active=3).sum() == 0
+    assert evaluate_rules(p, act, RuleType.MEAN_RATIO, 0.10, min_active=2)[1] == 1

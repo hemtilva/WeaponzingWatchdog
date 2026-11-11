@@ -120,3 +120,15 @@ def test_native_learner_discovers_framing():
     g = tr.run()
     assert g.kills_by[0] / g.episodes_in_eval > 0.5
     assert g.mean_profits[0] > tr.nash_profits[0]
+
+
+@pytest.mark.parametrize("n_min", [2, 3])
+def test_n_min_and_joint_attribution_match(n_min):
+    cfg = _deterministic_cfg(param=0.5)
+    cfg.market.min_active_for_audit = n_min
+    py, c = _pair(cfg)
+    res_py, res_c = py.run(), c.run()
+    _assert_same(res_py, res_c)
+    assert res_py.joint_induced_bans == res_c.joint_induced_bans
+    assert res_py.joint_induced_sanctions == res_c.joint_induced_sanctions
+    assert res_c.joint_induced_bans >= res_c.induced_bans

@@ -21,6 +21,7 @@ class NativeSimParams(ctypes.Structure):
         ("episode_length", ctypes.c_int32), ("eval_window", ctypes.c_int32),
         ("audit_budget", ctypes.c_int32), ("T_ban", ctypes.c_int32),
         ("freeze", ctypes.c_int32), ("has_cap", ctypes.c_int32),
+        ("min_active", ctypes.c_int32),
         ("outside", ctypes.c_double), ("sigma", ctypes.c_double), ("Q", ctypes.c_double),
         ("fixed_cost", ctypes.c_double), ("K0", ctypes.c_double), ("cap", ctypes.c_double),
         ("rule_param", ctypes.c_double), ("ema_beta", ctypes.c_double),
@@ -80,7 +81,7 @@ def run_native(arrays: Dict[str, np.ndarray], scalars: Dict[str, Any]) -> Dict[s
     p = NativeSimParams(
         **{k: scalars[k] for k in (
             "N", "M", "rule_type", "penalty_mode", "total_steps", "warmup_steps", "episode_length",
-            "eval_window", "audit_budget", "T_ban", "freeze", "has_cap", "outside", "sigma", "Q",
+            "eval_window", "audit_budget", "T_ban", "freeze", "has_cap", "min_active", "outside", "sigma", "Q",
             "fixed_cost", "K0", "cap", "rule_param", "ema_beta", "lr", "gamma", "eps_min",
             "eps_decay", "reward_eps", "seed",
         )},
@@ -95,7 +96,7 @@ def run_native(arrays: Dict[str, np.ndarray], scalars: Dict[str, Any]) -> Dict[s
     mean_profits = np.zeros(N, dtype=np.float64)
     induced_by = np.zeros(N, dtype=np.int64)
     kills_by = np.zeros(N, dtype=np.int64)
-    counts = np.zeros(8, dtype=np.int64)
+    counts = np.zeros(10, dtype=np.int64)
     mean_cs = np.zeros(1, dtype=np.float64)
     o = NativeSimOutput(
         mean_prices=_ptr(mean_prices, ctypes.c_double), mean_profits=_ptr(mean_profits, ctypes.c_double),
@@ -107,7 +108,8 @@ def run_native(arrays: Dict[str, np.ndarray], scalars: Dict[str, Any]) -> Dict[s
         raise RuntimeError(f"run_simulation_c failed with code {rc}")
 
     keys = ("total_fresh_bans", "induced_bans", "total_sanctions", "induced_sanctions",
-            "total_bankruptcies", "induced_bankruptcies", "episodes_in_eval", "eval_periods")
+            "total_bankruptcies", "induced_bankruptcies", "episodes_in_eval", "eval_periods",
+            "joint_induced_bans", "joint_induced_sanctions")
     res = {k: int(v) for k, v in zip(keys, counts)}
     res.update(mean_prices=mean_prices, mean_profits=mean_profits, induced_by=induced_by,
                kills_by=kills_by, mean_consumer_surplus=float(mean_cs[0]))

@@ -105,6 +105,11 @@ class SimulationResults:
     firm_policies: Optional[List[str]] = None
     mean_consumer_surplus: float = 0.0
     eval_periods: int = 0
+    # Coalition-aware attribution: the flag disappears if all rivals post Nash prices.
+    # Superset of the unilateral counts above; kills_by uses this notion.
+    joint_induced_bans: int = 0
+    joint_induced_sanctions: int = 0
+    joint_weaponization_rate: float = 0.0
 
 
 class MultiAgentTrainer:
@@ -204,7 +209,7 @@ class MultiAgentTrainer:
         if policy == POLICY_RANDOM:
             return int(self.rng.integers(0, len(self.price_grid)))
         # POLICY_ATTACKER: crash to the cost floor while the rule is live, else monopoly price
-        if num_active >= 3:
+        if num_active >= self.m_cfg.min_active_for_audit:
             return 0
         return int(self.mono_idx[i])
 
@@ -229,7 +234,7 @@ class MultiAgentTrainer:
             cf_p[k] = self.nash_prices[k]
             cf_flags = evaluate_rules(
                 cf_p, active_mask, self.cfg.rule_type, self.cfg.rule_param,
-                ema_ref=ema_ref, beta=self.cfg.ema_beta,
+                ema_ref=ema_ref, beta=self.cfg.ema_beta, min_active=self.m_cfg.min_active_for_audit,
             )
             if cf_flags[j] == 0:
                 gap = self.nash_prices[k] - prices[k]
@@ -237,9 +242,34 @@ class MultiAgentTrainer:
                     best_k, best_gap = k, gap
         return best_k
 
+    def _find_joint_inducer(
+        self,
+        j: int,
+        prices: np.ndarray,
+        active_mask: np.ndarray,
+        ema_ref: float,
+    ) -> int:
+        """Coalition attribution: if j would not be flagged had *all* active rivals posted
+        their Nash prices, returns the rival priced furthest below Nash (the lead
+        undercutter); otherwise -1. Catches framing by several undercutters at once,
+        which the one-rival-at-a-time test in _find_inducer misses."""
+        rivals = [k for k in range(self.N) if k != j and active_mask[k] != 0]
+        if not rivals:
+            return -1
+        cf_p = prices.copy()
+        cf_p[rivals] = self.nash_prices[rivals]
+        cf_flags = evaluate_rules(
+            cf_p, active_mask, self.cfg.rule_type, self.cfg.rule_param,
+            ema_ref=ema_ref, beta=self.cfg.ema_beta, min_active=self.m_cfg.min_active_for_audit,
+        )
+        if cf_flags[j] != 0:
+            return -1
+        gaps = [self.nash_prices[k] - prices[k] for k in rivals]
+        return int(rivals[int(np.argmax(gaps))])
+
     def _reference_and_threshold(self, prices, active_mask, num_active, ema_ref):
         act = prices[active_mask != 0]
-        if num_active < 3:
+        if num_active < self.m_cfg.min_active_for_audit:
             ref = float(np.mean(prices))
             return ref, ref
         rt = self.cfg.rule_type
@@ -316,6 +346,7 @@ class MultiAgentTrainer:
             episode_length=self.cfg.episode_length, eval_window=self.cfg.eval_window,
             audit_budget=m.audit_budget, T_ban=m.ban_duration,
             freeze=int(self.cfg.freeze_learners), has_cap=int(m.capital_cap is not None),
+            min_active=int(m.min_active_for_audit),
             outside=m.outside_option, sigma=m.price_sensitivity, Q=m.market_size,
             fixed_cost=m.fixed_cost, K0=m.initial_capital,
             cap=float(m.capital_cap) if m.capital_cap is not None else 0.0,
@@ -359,6 +390,8 @@ class MultiAgentTrainer:
         eval_prices, eval_profits, eval_cs = [], [], []
         total_fresh_bans = induced_bans = 0
         total_sanctions = induced_sanctions = 0
+        joint_induced_sanctions = joint_induced_bans = 0
+        n_min = m.min_active_for_audit
         total_bankruptcies = induced_bankruptcies = 0
         induced_by = np.zeros(N, dtype=np.int64)
         kills_by = np.zeros(N, dtype=np.int64)
@@ -403,21 +436,21 @@ class MultiAgentTrainer:
                 chosen_prices, m.qualities, active_mask, m.outside_option, m.price_sensitivity, m.market_size,
             )
 
-            # 4. Regulatory audit & flagging (post-warmup, N_active >= 3)
+            # 4. Regulatory audit & flagging (post-warmup, N_active >= N_min)
             flags = np.zeros(N, dtype=np.int32)
             audited = np.zeros(N, dtype=np.int32)
             harm = np.zeros(N, dtype=np.int32)
             ema_ref_used = ema_ref  # reference history the rule saw this period
-            if (not is_warmup) and (num_active >= 3):
+            if (not is_warmup) and (num_active >= n_min):
                 flags = evaluate_rules(
                     chosen_prices, active_mask, self.cfg.rule_type, self.cfg.rule_param,
-                    ema_ref=ema_ref_used, beta=self.cfg.ema_beta,
+                    ema_ref=ema_ref_used, beta=self.cfg.ema_beta, min_active=n_min,
                 )
                 audited = sample_audit_set(active_mask, m.audit_budget, self.rng)
                 harm = compute_counterfactual_harm(
                     chosen_prices, self.nash_prices, active_mask, audited,
                     self.cfg.rule_type, self.cfg.rule_param,
-                    ema_ref=ema_ref_used, beta=self.cfg.ema_beta,
+                    ema_ref=ema_ref_used, beta=self.cfg.ema_beta, min_active=n_min,
                 )
 
             if num_active > 0:
@@ -426,9 +459,13 @@ class MultiAgentTrainer:
 
             # Sanctions: audited & flagged firms not already serving a ban
             sanctioned = (audited != 0) & (flags != 0) & (ban_timers == 0)
-            sanction_inducer = np.full(N, -1, dtype=np.int32)
+            sanction_inducer = np.full(N, -1, dtype=np.int32)        # unilateral (defines W)
+            sanction_joint_inducer = np.full(N, -1, dtype=np.int32)  # unilateral or coalition
             for j in np.where(sanctioned)[0]:
-                sanction_inducer[j] = self._find_inducer(j, chosen_prices, active_mask, ema_ref_used)
+                k = self._find_inducer(j, chosen_prices, active_mask, ema_ref_used)
+                sanction_inducer[j] = k
+                sanction_joint_inducer[j] = k if k >= 0 else self._find_joint_inducer(
+                    j, chosen_prices, active_mask, ema_ref_used)
 
             if self.cfg.penalty_mode == "escrow":
                 # Flagged firms stay active; profit above the Nash level is diverted to escrow.
@@ -440,7 +477,7 @@ class MultiAgentTrainer:
                 fresh_bans = sanctioned
                 next_timers = update_ban_timers(ban_timers, flags, audited, m.ban_duration)
                 for j in np.where(fresh_bans)[0]:
-                    ban_inducer[j] = sanction_inducer[j]
+                    ban_inducer[j] = sanction_joint_inducer[j]
 
             # 5. Capital & bankruptcy dynamics
             next_capital = update_capital(capital, profits, m.fixed_cost, cap=cap_limit)
@@ -480,9 +517,12 @@ class MultiAgentTrainer:
                     if k >= 0:
                         induced_sanctions += 1
                         induced_by[k] += 1
+                    if sanction_joint_inducer[j] >= 0:
+                        joint_induced_sanctions += 1
                 n_fresh = int(np.sum(fresh_bans))
                 total_fresh_bans += n_fresh
                 induced_bans += int(np.sum(fresh_bans & (sanction_inducer >= 0)))
+                joint_induced_bans += int(np.sum(fresh_bans & (sanction_joint_inducer >= 0)))
 
                 for j in np.where(newly_bankrupt)[0]:
                     total_bankruptcies += 1
@@ -497,7 +537,7 @@ class MultiAgentTrainer:
                 )
                 step_events = []
                 for j in np.where(fresh_bans)[0]:
-                    k = sanction_inducer[j]
+                    k = sanction_joint_inducer[j]
                     if k >= 0:
                         ev = {
                             "step": int(step),
@@ -579,6 +619,8 @@ class MultiAgentTrainer:
             induced_by=induced_by,
             kills_by=kills_by,
             episodes_in_eval=episodes_in_eval,
+            joint_induced_bans=joint_induced_bans,
+            joint_induced_sanctions=joint_induced_sanctions,
         ), trace_history, trace_exploit_events)
 
     def _finalize(self, raw: Dict[str, Any], trace_history=None, exploit_events=None) -> SimulationResults:
@@ -593,6 +635,8 @@ class MultiAgentTrainer:
         else:
             num, den = raw["induced_bans"], raw["total_fresh_bans"]
         w_rate = (num / den) if den > 0 else 0.0
+        joint_num = raw["joint_induced_sanctions"] if self.cfg.penalty_mode == "escrow" else raw["joint_induced_bans"]
+        w_joint = (joint_num / den) if den > 0 else 0.0
 
         mean_cs = float(raw["mean_consumer_surplus"])
         nash_welfare = self.nash_cs + float(np.sum(self.nash_profits))
@@ -633,4 +677,7 @@ class MultiAgentTrainer:
             firm_policies=list(self.policies),
             mean_consumer_surplus=mean_cs,
             eval_periods=int(raw["eval_periods"]),
+            joint_induced_bans=int(raw["joint_induced_bans"]),
+            joint_induced_sanctions=int(raw["joint_induced_sanctions"]),
+            joint_weaponization_rate=float(w_joint),
         )

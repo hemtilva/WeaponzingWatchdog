@@ -54,6 +54,7 @@ struct SimParams {
     int32_t rule_type, penalty_mode;          // penalty_mode: 0 shutdown, 1 escrow
     int32_t total_steps, warmup_steps, episode_length, eval_window;
     int32_t audit_budget, T_ban, freeze, has_cap;
+    int32_t min_active;                       // N_min: audits only while >= this many active
     double outside, sigma, Q, fixed_cost, K0, cap;
     double rule_param, ema_beta;
     double lr, gamma, eps_min, eps_decay, reward_eps;
@@ -80,8 +81,9 @@ struct SimOutput {
     int64_t* induced_by;          // (N)
     int64_t* kills_by;            // (N)
     // counts: fresh_bans, induced_bans, sanctions, induced_sanctions,
-    //         bankruptcies, induced_bankruptcies, episodes_in_eval, eval_periods
-    int64_t* counts;              // (8)
+    //         bankruptcies, induced_bankruptcies, episodes_in_eval, eval_periods,
+    //         joint_induced_bans, joint_induced_sanctions
+    int64_t* counts;              // (10)
     double* mean_cs;              // (1)
 };
 
@@ -121,14 +123,14 @@ struct Sim {
         return (std::pow(x, 1.0 - a) - 1.0) / (1.0 - a);
     }
 
-    // Regulatory flags (all-zero below 3 active firms)
+    // Regulatory flags (all-zero below N_min active firms)
     void flags(const double* p, const int* act, double ema_ref, int* out) const {
         std::fill(out, out + N, 0);
         double ap[16];
         int idx[16];
         int n = 0;
         for (int i = 0; i < N; ++i) if (act[i]) { ap[n] = p[i]; idx[n] = i; ++n; }
-        if (n < 3) return;
+        if (n < P.min_active) return;
         double mean = 0.0;
         for (int k = 0; k < n; ++k) mean += ap[k];
         mean /= n;
@@ -168,7 +170,7 @@ struct Sim {
         switch (P.policies[i]) {
             case POL_NASH: return P.nash_idx[i];
             case POL_RANDOM: return rng.below(M);
-            case POL_ATTACKER: return (num_active >= 3) ? 0 : P.mono_idx[i];
+            case POL_ATTACKER: return (num_active >= P.min_active) ? 0 : P.mono_idx[i];
             default: break;
         }
         if (!P.freeze && rng.uniform() < P.epsilon[i]) return rng.below(M);
@@ -221,6 +223,8 @@ SIM_API int32_t run_simulation_c(const SimParams* params, SimOutput* out) {
     std::vector<double> capital(N, cap0), next_capital(N), prices(N), profits(N), shares(N);
     std::vector<int> timers(N, 0), next_timers(N), lag_idx(N), act_idx(N), active(N), inactive(N);
     std::vector<int> flg(N), cf_flg(N), audited(N), harm(N), sanctioned(N), sanction_inducer(N), ban_inducer(N, -1);
+    std::vector<int> joint_inducer(N, -1);
+    std::vector<double> cf_prices(N);
     std::vector<int64_t> states(N);
     std::vector<Pending> pend(N);
     std::vector<double> price_sum(N, 0.0), profit_sum(N, 0.0);
@@ -228,6 +232,7 @@ SIM_API int32_t run_simulation_c(const SimParams* params, SimOutput* out) {
     std::vector<int> act_list(N);
     int64_t fresh_bans = 0, induced_bans = 0, sanctions = 0, induced_sanctions = 0;
     int64_t bankruptcies = 0, induced_bankruptcies = 0, episodes_in_eval = 0, eval_periods = 0;
+    int64_t joint_induced_bans = 0, joint_induced_sanctions = 0;
     double cs_sum = 0.0;
     for (int i = 0; i < N; ++i) { out->induced_by[i] = 0; out->kills_by[i] = 0; }
 
@@ -296,7 +301,7 @@ SIM_API int32_t run_simulation_c(const SimParams* params, SimOutput* out) {
         std::fill(audited.begin(), audited.end(), 0);
         std::fill(harm.begin(), harm.end(), 0);
         const double ema_used = ema_ref;
-        const bool regulated = !warmup && n_act >= 3;
+        const bool regulated = !warmup && n_act >= P.min_active;
         if (regulated) {
             sim.flags(prices.data(), active.data(), ema_used, flg.data());
             int na = 0;
@@ -328,6 +333,7 @@ SIM_API int32_t run_simulation_c(const SimParams* params, SimOutput* out) {
         for (int j = 0; j < N; ++j) {
             sanctioned[j] = (audited[j] && flg[j] && timers[j] == 0) ? 1 : 0;
             sanction_inducer[j] = -1;
+            joint_inducer[j] = -1;
             if (!sanctioned[j]) continue;
             double best_gap = -std::numeric_limits<double>::infinity();
             for (int k = 0; k < N; ++k) {
@@ -341,6 +347,26 @@ SIM_API int32_t run_simulation_c(const SimParams* params, SimOutput* out) {
                     if (gap > best_gap) { best_gap = gap; sanction_inducer[j] = k; }
                 }
             }
+            // Coalition attribution: j unflagged if all active rivals post Nash prices
+            joint_inducer[j] = sanction_inducer[j];
+            if (joint_inducer[j] < 0) {
+                bool any_rival = false;
+                for (int k = 0; k < N; ++k) {
+                    cf_prices[k] = prices[k];
+                    if (k != j && active[k]) { cf_prices[k] = P.nash_prices[k]; any_rival = true; }
+                }
+                if (any_rival) {
+                    sim.flags(cf_prices.data(), active.data(), ema_used, cf_flg.data());
+                    if (!cf_flg[j]) {
+                        double best = -std::numeric_limits<double>::infinity();
+                        for (int k = 0; k < N; ++k) {
+                            if (k == j || !active[k]) continue;
+                            double gap = P.nash_prices[k] - prices[k];
+                            if (gap > best) { best = gap; joint_inducer[j] = k; }
+                        }
+                    }
+                }
+            }
         }
 
         if (P.penalty_mode == 1) {  // escrow
@@ -350,7 +376,7 @@ SIM_API int32_t run_simulation_c(const SimParams* params, SimOutput* out) {
         } else {
             for (int i = 0; i < N; ++i) {
                 next_timers[i] = (audited[i] && flg[i]) ? P.T_ban : std::max(0, timers[i] - 1);
-                if (sanctioned[i]) ban_inducer[i] = sanction_inducer[i];
+                if (sanctioned[i]) ban_inducer[i] = joint_inducer[i];
             }
         }
         total_profit = 0.0;
@@ -393,7 +419,12 @@ SIM_API int32_t run_simulation_c(const SimParams* params, SimOutput* out) {
                 ++sanctions;
                 int k = sanction_inducer[j];
                 if (k >= 0) { ++induced_sanctions; ++out->induced_by[k]; }
-                if (P.penalty_mode == 0) { ++fresh_bans; if (k >= 0) ++induced_bans; }
+                if (joint_inducer[j] >= 0) ++joint_induced_sanctions;
+                if (P.penalty_mode == 0) {
+                    ++fresh_bans;
+                    if (k >= 0) ++induced_bans;
+                    if (joint_inducer[j] >= 0) ++joint_induced_bans;
+                }
             }
             for (int j = 0; j < N; ++j) {
                 if (capital[j] > 0.0 && next_capital[j] <= 0.0) {
@@ -444,6 +475,7 @@ SIM_API int32_t run_simulation_c(const SimParams* params, SimOutput* out) {
     out->counts[2] = sanctions; out->counts[3] = induced_sanctions;
     out->counts[4] = bankruptcies; out->counts[5] = induced_bankruptcies;
     out->counts[6] = episodes_in_eval; out->counts[7] = eval_periods;
+    out->counts[8] = joint_induced_bans; out->counts[9] = joint_induced_sanctions;
     out->mean_cs[0] = eval_periods > 0 ? cs_sum / eval_periods : 0.0;
     return 0;
 }

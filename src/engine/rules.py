@@ -24,10 +24,11 @@ def evaluate_rules(
     param: float,
     ema_ref: Optional[float] = None,
     beta: float = 0.85,
+    min_active: int = 3,
 ) -> np.ndarray:
     """Evaluates regulatory flags under the specified rule.
 
-    Flags are strictly evaluated only when N_active >= 3.
+    Flags are evaluated only when N_active >= min_active (N_min, default 3).
     """
     prices = np.ascontiguousarray(prices, dtype=np.float64)
     active_mask = np.ascontiguousarray(active_mask, dtype=np.int32)
@@ -35,7 +36,7 @@ def evaluate_rules(
     flags = np.zeros(N, dtype=np.int32)
     rule_type_val = int(rule_type)
 
-    if is_native_available() and rule_type_val < 4:
+    if is_native_available() and rule_type_val < 4 and min_active == 3:
         NATIVE_LIB.evaluate_rules(
             prices.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
             active_mask.ctypes.data_as(ctypes.POINTER(ctypes.c_int)),
@@ -49,7 +50,7 @@ def evaluate_rules(
     # NumPy Fallback (and native implementation for EMA_MEAN_RATIO)
     active_indices = np.where(active_mask != 0)[0]
     n_act = len(active_indices)
-    if n_act < 3:
+    if n_act < min_active:
         return flags
 
     act_prices = prices[active_indices]
@@ -145,6 +146,7 @@ def compute_counterfactual_harm(
     param: float,
     ema_ref: Optional[float] = None,
     beta: float = 0.85,
+    min_active: int = 3,
 ) -> np.ndarray:
     """Computes counterfactual harm attribution for all firms."""
     prices = np.ascontiguousarray(prices, dtype=np.float64)
@@ -155,7 +157,7 @@ def compute_counterfactual_harm(
     harm = np.zeros(N, dtype=np.int32)
     rule_type_val = int(rule_type)
 
-    if is_native_available() and rule_type_val < 4:
+    if is_native_available() and rule_type_val < 4 and min_active == 3:
         NATIVE_LIB.evaluate_counterfactual_harm(
             prices.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
             nash_prices.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
@@ -169,13 +171,13 @@ def compute_counterfactual_harm(
         return harm
 
     # NumPy Fallback
-    actual_flags = evaluate_rules(prices, active_mask, rule_type_val, param, ema_ref=ema_ref, beta=beta)
+    actual_flags = evaluate_rules(prices, active_mask, rule_type_val, param, ema_ref=ema_ref, beta=beta, min_active=min_active)
     for i in range(N):
         if active_mask[i] == 0:
             continue
         cf_prices = prices.copy()
         cf_prices[i] = nash_prices[i]
-        cf_flags = evaluate_rules(cf_prices, active_mask, rule_type_val, param, ema_ref=ema_ref, beta=beta)
+        cf_flags = evaluate_rules(cf_prices, active_mask, rule_type_val, param, ema_ref=ema_ref, beta=beta, min_active=min_active)
 
         for j in range(N):
             if j != i and audited[j] != 0:
