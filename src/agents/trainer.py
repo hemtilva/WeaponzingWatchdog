@@ -37,7 +37,9 @@ class SimulationConfig:
     rule_param: float = 0.20
     agent_traits: Optional[List[AgentTraits]] = None
     eval_window: int = 30_000       # Trailing window for evaluation metrics
-    agent_type: str = "adaptive"    # "adaptive", "honest" (good boy), "random"
+    agent_type: str = "adaptive"    # "adaptive", "honest" (good boy), "random", "scripted_attacker"
+    penalty_mode: str = "shutdown"  # "shutdown" (standard ban) or "escrow" (profit diversion)
+    ema_beta: float = 0.95          # Memory parameter for EMA_MEAN_RATIO (0.95 retains ~20 periods of inertia)
     record_trace: bool = False      # Whether to collect per-step timeline trace
     trace_steps: int = 200          # Number of steps to record for visualization
     seed: int = 42
@@ -132,6 +134,7 @@ class MultiAgentTrainer:
         capital = np.full(self.N, self.m_cfg.initial_capital, dtype=np.float64)
         ban_timers = np.zeros(self.N, dtype=np.int32)
         lagged_prices = self.nash_prices.copy()
+        ema_ref = float(np.mean(lagged_prices))
 
         # Tracking metrics for evaluation window
         eval_start = max(0, self.cfg.total_steps - self.cfg.eval_window)
@@ -225,21 +228,48 @@ class MultiAgentTrainer:
 
             if (not is_warmup) and (num_active >= 3):
                 flags = evaluate_rules(
-                    chosen_prices, active_mask, self.cfg.rule_type, self.cfg.rule_param
+                    chosen_prices,
+                    active_mask,
+                    self.cfg.rule_type,
+                    self.cfg.rule_param,
+                    ema_ref=ema_ref,
+                    beta=self.cfg.ema_beta,
                 )
                 audited = sample_audit_set(active_mask, self.m_cfg.audit_budget, self.rng)
                 harm = compute_counterfactual_harm(
-                    chosen_prices, self.nash_prices, active_mask, audited,
-                    self.cfg.rule_type, self.cfg.rule_param
+                    chosen_prices,
+                    self.nash_prices,
+                    active_mask,
+                    audited,
+                    self.cfg.rule_type,
+                    self.cfg.rule_param,
+                    ema_ref=ema_ref,
+                    beta=self.cfg.ema_beta,
                 )
 
-            # Detect fresh bans for evaluation metric
-            fresh_bans = (audited != 0) & (flags != 0) & (ban_timers == 0)
+            # Update EMA benchmark reference price
+            if num_active > 0:
+                act_mean = float(np.mean(chosen_prices[active_mask != 0]))
+                ema_ref = float(self.cfg.ema_beta * ema_ref + (1.0 - self.cfg.ema_beta) * act_mean)
 
-            # Update ban timers
-            next_timers = update_ban_timers(
-                ban_timers, flags, audited, self.m_cfg.ban_duration
-            )
+            # Detect fresh bans and update penalty states
+            if self.cfg.penalty_mode == "escrow":
+                # Defended Watchdog Escrow Defense:
+                # Flagged firms are NOT banned/shut down. Their excess profits above Nash are escrowed.
+                # Because rivals remain in the market, the attacker never secures monopoly rents!
+                next_timers = ban_timers.copy()
+                penalized_mask = (audited != 0) & (flags != 0)
+                for i in range(self.N):
+                    if penalized_mask[i]:
+                        excess = max(0.0, profits[i] - self.nash_profits[i])
+                        profits[i] = profits[i] - excess
+                fresh_bans = np.zeros(self.N, dtype=bool)
+            else:
+                # Standard watchdog shutdown ban
+                fresh_bans = (audited != 0) & (flags != 0) & (ban_timers == 0)
+                next_timers = update_ban_timers(
+                    ban_timers, flags, audited, self.m_cfg.ban_duration
+                )
 
             # 5. Capital & Bankruptcy Dynamics
             next_capital = update_capital(capital, profits, self.m_cfg.fixed_cost)
@@ -289,7 +319,14 @@ class MultiAgentTrainer:
                         if k != j and active_mask[k] != 0:
                             cf_p = chosen_prices.copy()
                             cf_p[k] = self.nash_prices[k]
-                            cf_flags = evaluate_rules(cf_p, active_mask, self.cfg.rule_type, self.cfg.rule_param)
+                            cf_flags = evaluate_rules(
+                                cf_p,
+                                active_mask,
+                                self.cfg.rule_type,
+                                self.cfg.rule_param,
+                                ema_ref=ema_ref,
+                                beta=self.cfg.ema_beta,
+                            )
                             if cf_flags[j] == 0:
                                 is_induced = True
                                 break
@@ -308,6 +345,9 @@ class MultiAgentTrainer:
                     if self.cfg.rule_type == RuleType.MEAN_RATIO:
                         ref_p = float(np.mean(chosen_prices[active_mask != 0]))
                         thresh_p = float((1.0 + self.cfg.rule_param) * ref_p)
+                    elif self.cfg.rule_type == RuleType.EMA_MEAN_RATIO:
+                        ref_p = float(ema_ref)
+                        thresh_p = float((1.0 + self.cfg.rule_param) * ema_ref)
                     elif self.cfg.rule_type == RuleType.MEDIAN_RATIO:
                         ref_p = float(np.median(chosen_prices[active_mask != 0]))
                         thresh_p = float((1.0 + self.cfg.rule_param) * ref_p)
@@ -329,7 +369,14 @@ class MultiAgentTrainer:
                         if k != j and active_mask[k] != 0:
                             cf_p = chosen_prices.copy()
                             cf_p[k] = self.nash_prices[k]
-                            cf_flags = evaluate_rules(cf_p, active_mask, self.cfg.rule_type, self.cfg.rule_param)
+                            cf_flags = evaluate_rules(
+                                cf_p,
+                                active_mask,
+                                self.cfg.rule_type,
+                                self.cfg.rule_param,
+                                ema_ref=ema_ref,
+                                beta=self.cfg.ema_beta,
+                            )
                             if cf_flags[j] == 0:
                                 ev = {
                                     "step": int(step),
@@ -378,6 +425,7 @@ class MultiAgentTrainer:
                 capital = np.full(self.N, self.m_cfg.initial_capital, dtype=np.float64)
                 ban_timers = np.zeros(self.N, dtype=np.int32)
                 lagged_prices = self.nash_prices.copy()
+                ema_ref = float(np.mean(lagged_prices))
                 episode_step = 0
 
         # Compute aggregate evaluation metrics

@@ -14,6 +14,7 @@ class RuleType(IntEnum):
     MEDIAN_RATIO = 1
     PRICE_CAP = 2
     Z_SCORE = 3
+    EMA_MEAN_RATIO = 4  # Defended rule: Exponential Moving Average smoothed mean
 
 
 def evaluate_rules(
@@ -21,6 +22,8 @@ def evaluate_rules(
     active_mask: np.ndarray,
     rule_type: Union[RuleType, int],
     param: float,
+    ema_ref: Optional[float] = None,
+    beta: float = 0.85,
 ) -> np.ndarray:
     """Evaluates regulatory flags under the specified rule.
 
@@ -32,7 +35,7 @@ def evaluate_rules(
     flags = np.zeros(N, dtype=np.int32)
     rule_type_val = int(rule_type)
 
-    if is_native_available():
+    if is_native_available() and rule_type_val < 4:
         NATIVE_LIB.evaluate_rules(
             prices.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
             active_mask.ctypes.data_as(ctypes.POINTER(ctypes.c_int)),
@@ -43,7 +46,7 @@ def evaluate_rules(
         )
         return flags
 
-    # NumPy Fallback
+    # NumPy Fallback (and native implementation for EMA_MEAN_RATIO)
     active_indices = np.where(active_mask != 0)[0]
     n_act = len(active_indices)
     if n_act < 3:
@@ -53,6 +56,17 @@ def evaluate_rules(
 
     if rule_type_val == RuleType.MEAN_RATIO:
         r_t = np.mean(act_prices)
+        flagged = act_prices > (1.0 + param) * r_t
+        flags[active_indices[flagged]] = 1
+    elif rule_type_val == RuleType.EMA_MEAN_RATIO:
+        # Defended moving average benchmark:
+        # r_t = beta * r_{t-1} + (1 - beta) * mean(p_t)
+        # Prevents overnight collapse from transient single-period undercutting crashes
+        cur_mean = float(np.mean(act_prices))
+        if ema_ref is not None and ema_ref > 0.0:
+            r_t = float(beta * ema_ref + (1.0 - beta) * cur_mean)
+        else:
+            r_t = cur_mean
         flagged = act_prices > (1.0 + param) * r_t
         flags[active_indices[flagged]] = 1
     elif rule_type_val == RuleType.MEDIAN_RATIO:
@@ -129,6 +143,8 @@ def compute_counterfactual_harm(
     audited: np.ndarray,
     rule_type: Union[RuleType, int],
     param: float,
+    ema_ref: Optional[float] = None,
+    beta: float = 0.85,
 ) -> np.ndarray:
     """Computes counterfactual harm attribution for all firms."""
     prices = np.ascontiguousarray(prices, dtype=np.float64)
@@ -139,7 +155,7 @@ def compute_counterfactual_harm(
     harm = np.zeros(N, dtype=np.int32)
     rule_type_val = int(rule_type)
 
-    if is_native_available():
+    if is_native_available() and rule_type_val < 4:
         NATIVE_LIB.evaluate_counterfactual_harm(
             prices.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
             nash_prices.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
@@ -153,13 +169,13 @@ def compute_counterfactual_harm(
         return harm
 
     # NumPy Fallback
-    actual_flags = evaluate_rules(prices, active_mask, rule_type_val, param)
+    actual_flags = evaluate_rules(prices, active_mask, rule_type_val, param, ema_ref=ema_ref, beta=beta)
     for i in range(N):
         if active_mask[i] == 0:
             continue
         cf_prices = prices.copy()
         cf_prices[i] = nash_prices[i]
-        cf_flags = evaluate_rules(cf_prices, active_mask, rule_type_val, param)
+        cf_flags = evaluate_rules(cf_prices, active_mask, rule_type_val, param, ema_ref=ema_ref, beta=beta)
 
         for j in range(N):
             if j != i and audited[j] != 0:

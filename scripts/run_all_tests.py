@@ -31,6 +31,7 @@ TEST_MODULES = [
     "tests.test_evaluation",
     "tests.test_extensions",
     "tests.test_scripted_attacker",
+    "tests.test_defended_watchdog",
 ]
 
 
