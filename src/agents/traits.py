@@ -34,16 +34,23 @@ def compute_agent_reward(
     N: int,
     harm_count: int,
     traits: AgentTraits,
-    eps: float = 1e-4,
+    eps: float = 1e-2,
 ) -> float:
     """Computes total per-period agent reward incorporating behavioral traits.
 
-    R_i = U_alpha(pi_i / Q + eps) + lambda_i * W_ext,i - mu_i * C_harm(i, t)
+    R_i = [U_alpha(pi_i / Q + eps) - U_alpha(eps)] + lambda_i * W_ext,i - mu_i * C_harm(i, t)
     where W_ext,i = (CS + sum_{j != i} pi_j) / (N * Q).
+
+    The utility is anchored so a zero-profit period (e.g. while banned) is worth
+    exactly 0 and every solvent period is worth >= 0. Without the anchor, CRRA
+    utility of small profits is negative (x - 1 for alpha = 0, ln x for alpha = 1),
+    which makes bankruptcy (terminal, value 0) and never-updated "banned" states
+    look better than staying in the market. For alpha = 0 the monetary term
+    reduces to pi_i / Q, matching the exact DP reward.
     """
-    # 1. Monetary payoff with shift eps to keep utility finite during zero-profit bans
+    # 1. Monetary payoff, anchored at U(eps) so that zero profit gives zero utility
     monetary = max(0.0, profit) / Q + eps
-    u_monetary = crra_utility(monetary, traits.alpha)
+    u_monetary = crra_utility(monetary, traits.alpha) - crra_utility(eps, traits.alpha)
 
     # 2. External surplus
     w_ext = (CS + other_profits_sum) / (N * Q)

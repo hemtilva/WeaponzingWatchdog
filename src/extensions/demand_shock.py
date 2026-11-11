@@ -92,7 +92,7 @@ class DemandShockEngine:
             num_active = int(np.sum(active_mask))
 
             current_states = [
-                trainer.agents[i].indexer.encode(lagged_prices, ban_timers > 0, capital[i])
+                trainer.agents[i].indexer.encode(lagged_prices, (ban_timers > 0) | (capital <= 0.0), capital[i])
                 for i in range(N)
             ]
 
@@ -139,7 +139,7 @@ class DemandShockEngine:
                     profit=profits[i], Q=q_t, CS=cs, other_profits_sum=other_p_sum,
                     N=N, harm_count=harm[i], traits=trainer.agents[i].traits
                 )
-                next_s = trainer.agents[i].indexer.encode(chosen_prices, next_timers > 0, next_capital[i])
+                next_s = trainer.agents[i].indexer.encode(chosen_prices, (next_timers > 0) | (next_capital <= 0.0), next_capital[i])
                 if active_mask[i] != 0:
                     trainer.agents[i].update(current_states[i], chosen_actions[i], rew, next_s, done=next_capital[i] <= 0.0)
                 trainer.agents[i].decay_epsilon()
