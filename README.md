@@ -252,6 +252,16 @@ python scripts/build_engine.py
 pytest tests/ -v
 ```
 
+### Running the full study on another machine
+```bash
+git clone https://github.com/hemtilva/WeaponzingWatchdog.git
+cd WeaponzingWatchdog
+bash scripts/run_study.sh              # pull, build, test, run all studies, push results/
+```
+`STUDY=n4long bash scripts/run_study.sh` runs one study; `QUICK=1 NO_PUSH=1` is a smoke test.
+Results land in `results/<machine>/<study>/` (CSVs, plots, log, machine info) and are pushed
+to the branch. Studies: `single`, `h2`, `h3`, `robust`, `n4long` (see `experiments/run_study.py`).
+
 ### Does a learner discover framing?
 ```bash
 # One Q-learner vs honest Nash rivals; mean / median / cap rules, lethal vs non-lethal bans
