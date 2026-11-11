@@ -102,7 +102,7 @@ def test_learners_match_n4_and_repeated_runs():
     for _ in range(2):  # second call continues from persisted Q-tables
         res_py, res_c = py.run(), c.run()
         _assert_same(res_py, res_c)
-    assert res_c.induced_bankruptcies > 0
+    assert res_c.total_fresh_bans > 0 and res_c.total_bankruptcies > 0
     for a_py, a_c in zip(py.agents, c.agents):
         np.testing.assert_allclose(a_py.Q, a_c.Q, rtol=0, atol=1e-5)
 

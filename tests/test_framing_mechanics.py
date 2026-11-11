@@ -101,9 +101,12 @@ def test_scripted_attacker_kills_only_when_ban_is_lethal():
     assert lethal.kills_by[0] == lethal.induced_bankruptcies
     assert np.all(lethal.kills_by[1:] == 0)
 
+    # Lethal: every induced ban bankrupts. Non-lethal: one ban never does, though
+    # repeated bans can wear a rival down over a long episode.
+    assert lethal.induced_bankruptcies == lethal.induced_bans
     safe = _scripted(lethal=False)
     assert safe.induced_bans > 0
-    assert safe.induced_bankruptcies == 0
+    assert safe.induced_bankruptcies / safe.induced_bans < 0.25
 
 
 def test_median_rule_blocks_scripted_attacker():
@@ -175,3 +178,19 @@ def test_n_min_controls_regulation():
     act = np.ones(2, dtype=np.int32)
     assert evaluate_rules(p, act, RuleType.MEAN_RATIO, 0.10, min_active=3).sum() == 0
     assert evaluate_rules(p, act, RuleType.MEAN_RATIO, 0.10, min_active=2)[1] == 1
+
+
+def test_sole_survivor_keeps_earning_until_episode_end():
+    """Eliminating every rival must pay off: the episode continues with the survivor as a
+    monopolist instead of resetting (the legacy reset cut monopoly rents off)."""
+    def run(legacy):
+        cfg = SimulationConfig(
+            market=framing_market(num_firms=3, lethal=True, threshold_delta=0.10),
+            rule_param=0.10, total_steps=3000, warmup_steps=0, episode_length=300,
+            eval_window=3000, agent_type="scripted_attacker", seed=7, legacy_reset=legacy,
+        )
+        cfg.market.min_active_for_audit = 2
+        return MultiAgentTrainer(cfg).run()
+    new, old = run(False), run(True)
+    assert new.episodes_in_eval < old.episodes_in_eval
+    assert new.mean_profits[0] > old.mean_profits[0]

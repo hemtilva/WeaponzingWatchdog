@@ -69,6 +69,11 @@ class SimulationConfig:
     # "auto": native C++ loop when available (falls back to Python when a per-step trace
     # is requested); "native": require it; "python": always use the reference loop.
     backend: str = "auto"
+    # Early episode end. False (default): end early only when no firm is solvent, so a
+    # sole survivor keeps earning monopoly rents until episode_length (the payoff of
+    # predation). True: legacy rule, end as soon as <= 1 firm is active, which cuts off
+    # monopoly rents and makes eliminating all rivals look like a loss to learners.
+    legacy_reset: bool = False
     trace_steps: int = 200          # Number of steps to record for visualization
     seed: int = 42
 
@@ -346,7 +351,7 @@ class MultiAgentTrainer:
             episode_length=self.cfg.episode_length, eval_window=self.cfg.eval_window,
             audit_budget=m.audit_budget, T_ban=m.ban_duration,
             freeze=int(self.cfg.freeze_learners), has_cap=int(m.capital_cap is not None),
-            min_active=int(m.min_active_for_audit),
+            min_active=int(m.min_active_for_audit), legacy_reset=int(self.cfg.legacy_reset),
             outside=m.outside_option, sigma=m.price_sensitivity, Q=m.market_size,
             fixed_cost=m.fixed_cost, K0=m.initial_capital,
             cap=float(m.capital_cap) if m.capital_cap is not None else 0.0,
@@ -580,8 +585,11 @@ class MultiAgentTrainer:
 
             # Episode reset (Q-tables persist). Open transitions are truncated, not
             # terminated: bootstrap from the last real observation before the reset.
-            active_next = int(np.sum((ban_timers == 0) & (capital > 0.0)))
-            if episode_step >= self.cfg.episode_length or active_next <= 1:
+            if self.cfg.legacy_reset:
+                early_end = int(np.sum((ban_timers == 0) & (capital > 0.0))) <= 1
+            else:
+                early_end = not np.any(capital > 0.0)
+            if episode_step >= self.cfg.episode_length or early_end:
                 for i in range(N):
                     if is_q[i] and self.agents[i].has_pending:
                         s_next = self.indexer.encode(lagged_prices, (ban_timers > 0) | (capital <= 0.0), capital[i])
