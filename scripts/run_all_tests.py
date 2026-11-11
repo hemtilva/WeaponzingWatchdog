@@ -33,6 +33,7 @@ TEST_MODULES = [
     "tests.test_scripted_attacker",
     "tests.test_defended_watchdog",
     "tests.test_dqn_agent",
+    "tests.test_tournament",
 ]
 
 
