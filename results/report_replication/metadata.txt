@@ -1,0 +1,14 @@
+Experiment: five-condition single-learner exploratory replication
+Date: 2026-11-17
+Source commit before report changes: 46c5ba2b661a6d0eb8def24ebb53828ccf4afa31
+Driver: experiments/replicate_report.py (added with this report)
+Command: .venv/Scripts/python.exe experiments/replicate_report.py
+System: Windows x86-64
+Python: 3.15.2
+NumPy: 2.5.4
+SciPy: 1.18.1
+Native engine: existing src/csrc/engine.dll
+Native DLL SHA-256: BBCC3F80F76C455421306E3B30B280173790359DC3F07A777B0FBC6293251750
+Native binary was already present locally; its exact build provenance was not verified.
+Seeds: 9020-9024 per condition; 2,000,000 training steps and 50,000 evaluation steps each.
+Selection: conditions chosen after inspection of historical results; exploratory, not preregistered.

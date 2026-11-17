@@ -1,308 +1,197 @@
-# Weaponizing the Watchdog: How Agent Traits Shape the Emergence of Regulator-Exploiting Strategies in Learning Markets
+# Weaponizing the Watchdog
+## Strategic Pricing and Regulatory Exploitation in a Multi-Agent Market
 
-**Authors:** Krish Goradia, Hem Tilva, Satvik Sharma  
-**Course:** Multi-Agent Systems (MAS)  
-**Artifact Repository:** [WeaponizingWatchdog](file:///Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog)  
+**Authors:** Krish Goradia, Hem Tilva, Satvik Sharma
 
----
+**Course:** Multi-Agent Systems
+
+**Project type:** Computational study of strategic interaction and multi-agent learning
 
 ## Abstract
 
-Automated regulatory algorithms ("watchdogs") are deployed on digital marketplaces to protect consumers from price gouging by auditing and suspending sellers whose prices appear abnormal relative to the prevailing market reference price. However, when independent sellers delegate pricing decisions to adaptive reinforcement learning algorithms, relative audit rules introduce an unintended strategic attack surface: a predatory seller can learn that drastically undercutting its own price depresses the market reference price, causing innocent rivals pricing at ordinary competitive levels to breach relative thresholds, get flagged, audited, and suspended. While suspended, innocent rivals earn zero revenue while remaining liable for recurring fixed operating overhead, triggering permanent, absorbing bankruptcy. Once competitors are permanently eliminated, the predator raises prices to monopoly levels to capture long-run supra-competitive rents.
+Price-monitoring systems may classify a seller as unusually expensive by comparing its price with those of other sellers. This project investigates whether a learning seller can manipulate such a relative benchmark: by lowering its own price, it may cause competing sellers to be flagged and suspended. We model sellers as agents in a repeated differentiated-product market with random audits, fixed operating costs, capital reserves, and bankruptcy. We derive a condition under which a mean-based rule flags high-price rivals and compare it with a median-based rule and an absolute price cap. We then evaluate independent tabular Q-learning in controlled simulated markets.
 
-This study formalizes this predatory mechanism within an infinite-horizon discrete-time Markov game parameterized by a differentiated-products logit oligopoly with capital dynamics and absorbing liquidation. We establish exact game-theoretic boundaries via Value Iteration and compare them against decentralized multi-agent tabular Q-learning dynamics across three static regulatory architectures (Mean-Ratio, Median-Ratio, and Price Cap). Furthermore, we evaluate how private behavioral traits (ethics penalties μ, altruism λ, and Constant Relative Risk Aversion α) modulate exploit emergence, incorporate state space visitation diagnostics, test harm metrics against an intentional scripted attacker, analyze N = 4 continuous market architectures, and investigate two extensions: slow-timescale adaptive watchdog co-evolution and out-of-distribution demand shocks.
+In a saved 20-seed experiment with one learner and two fixed Nash-price rivals, the mean-rule condition with a short initial capital buffer produced an average of 2.000 rival bankruptcies per episode attributed by the simulator to induced bans; the median and cap conditions produced none. A separate five-seed rerun showed the same broad pattern. However, the larger-buffer mean-rule condition also produced an average of 1.938 attributed rival bankruptcies, contradicting a simple claim that a single ban must be lethal for elimination to occur. Further all-learning controls show substantial bankruptcy under a price cap even when no bans are attributed to peer-price manipulation. Trait-sweep results do not show a monotonic effect of the ethics weight. These are simulation findings, not evidence of real-world misconduct or proof of agent intent. The key contribution is a testable mechanism and an evaluation that distinguishes model-defined framing from other market failures.
 
----
+## 1. Introduction and research question
 
-## 1. Introduction & Motivating Scenario
+Automated sellers choose prices in response to competitors, and a marketplace may use a watchdog to identify prices that appear unusually high. If the watchdog's reference is the average of current seller prices, each seller partly controls the benchmark used to judge its competitors. A seller that undercuts can lower the average, potentially making a rival's unchanged price exceed the regulatory threshold.
 
-### 1.1 The Motivating Scenario
-Imagine an online retail platform hosting four sellers offering comparable consumer goods. To protect buyers against price gouging, the platform deploys an automated supervisory rule: any seller whose price exceeds the current average market price by more than 20% (threshold δ = 0.20) is audited and suspended from the platform for T_ban = 3 periods.
+Our central question is:
 
-Seller A, managed by an adaptive reinforcement learning algorithm, discovers an unintended exploitation path:
-1. **Strategic Deflation:** Seller A drops its price to its marginal cost floor (p_A ≈ c_A).
-2. **Benchmark Depression:** The average market price r_t falls sharply.
-3. **Induced Regulatory Flag:** Competitor B, pricing at ordinary competitive Bertrand-Nash levels (p_B = p^N), now exceeds the deflated market mean by more than 20% and is flagged as an apparent price-gouger.
-4. **Suspension & Fixed Overhead Drain:** Seller B is suspended for 3 periods. During suspension, B makes zero sales (π_B = 0) but must still pay non-avoidable operational overhead expenses Φ > 0 per period.
-5. **Absorbing Liquidation:** If the cumulative overhead drain exhausts Seller B's capital reserves (T_ban × Φ ≥ K_B), Seller B enters absorbing bankruptcy and permanently exits the market.
-6. **Monopoly Rent Extraction:** With Seller B permanently removed, Seller A elevates its price to joint monopoly levels p^M to extract sustained supra-competitive profits.
+> **When can a learning seller exploit a relative-price watchdog to harm competitors, and how do the rule and capital buffer affect the observed outcome?**
 
-Seller A never violated the platform rule; rather, the supervisory watchdog itself was weaponized as a predatory instrument to raise rivals' costs and force liquidation.
+We study three related questions. First, which rules admit unilateral manipulation in a simple two-price market? Second, does a Q-learner discover behavior associated with induced bans against fixed-price rivals? Third, do the same conclusions remain straightforward when every seller learns or when behavioral traits change?
 
-### 1.2 Core Research Question
-*For which regulatory rules, capital buffers (K0 / Φ), and ban durations (T_ban) do independent learning sellers discover watchdog-framing strategies, how do private behavioral traits modulate this emergence, and what is the resulting social welfare loss relative to competitive Bertrand-Nash equilibrium?*
+The problem connects strategic game modelling with learning from interaction, both directions identified in the course guidelines. It builds on research on algorithmic pricing and Q-learning [1, 2]. Unlike a study of collusion alone, our mechanism concerns an indirect interaction between a seller's price and the rule applied to others. The market is synthetic: model assumptions are chosen to expose the mechanism, not calibrated to an observed platform.
 
----
+## 2. Market and decision model
 
-## 2. Markov Oligopoly Game Formulation
+### 2.1 Agents, actions, and information
 
-The platform economy is modeled as an infinite-horizon Markov game:  
-`M = ⟨N, S, {A_i}, P, {R_i}, γ⟩`
+There are N sellers and a rule-based watchdog. In each period, every active seller selects a price from a shared finite grid. An active seller is solvent and not currently suspended. A suspended seller cannot make sales; a bankrupt seller exits for the remainder of the episode. The watchdog samples active sellers for audit and suspends an audited seller when its price violates the selected rule.
 
-### 2.1 Entities and State Space
-- **Firms:** N = {1, ..., N} active sellers indexed by i at discrete time periods t ∈ {0, 1, 2, ...}. Standard setting operates with N = 4 firms.
-- **Cost Structure:** Constant marginal cost c_i ≥ 0, per-period non-avoidable fixed overhead cost Φ > 0, and dynamic capital reserve K_{i,t} ≥ 0 initialized to K_{i,0} = K0. Total market buyer volume is Q > 0.
-- **Action Grid:** Discrete price space A_i = {p^(1) < ... < p^(M)} where p^(1) ≥ c_i. The joint price vector is p_t = (p_{1,t}, ..., p_{N,t}).
-- **Ban Countdown:** Countdown timer τ_{i,t} ∈ {0, ..., T_ban}, with active ban indicator b_{i,t} = I(τ_{i,t} > 0).
-- **Active Set:** N^{act}_t = {i ∈ N : b_{i,t} = 0 and K_{i,t} > 0} with active headcount N_{act,t}.
-- **Absorbing Bankruptcy:** When K_{i,t} ≤ 0, firm i is liquidated. Bankruptcy is absorbing: bankrupted sellers permanently exit N^{act}.
-- **Markov State:** s_t = (p_{t-1}, τ_t, K_t).
+The environment tracks prices, capital, and ban timers. A Q-learner receives a compressed observation consisting of the previous price vector, inactivity indicators for all sellers, and a three-level bin for its own capital. An inactivity indicator combines suspension and bankruptcy, and the observation does not contain exact rival capital or ban timers. Consequently, the learner's observation is not generally a complete Markov state. Sellers do not need to know the demand function or other sellers' strategies to update their Q-tables; the simulator knows the rules and market parameters. The watchdog is fixed in the experiments reported here; it is not a learning agent.
 
-### 2.2 Multinomial Logit Demand Clearinghouse
-Consumers choose among active sellers according to a multinomial logit discrete choice framework with an outside option. The market share of active seller i is:
-```text
-               exp((a_i - p_{i,t}) / σ_d)
-s_i(p_t) = -------------------------------------------
-           ∑_{j ∈ N^{act}_t} exp((a_j - p_{j,t}) / σ_d) + exp(a_0 / σ_d)
-```
-where a_i represents product quality, a_0 is the outside alternative utility, and σ_d > 0 parameterizes consumer price sensitivity. Inactive or suspended sellers receive zero demand share: s_i(p_t) = 0 for all i ∉ N^{act}_t.
+### 2.2 Demand, profit, and capital
 
-Per-period operating profit π_i and consumer surplus CS are given by:
-```text
-π_i(p_t) = Q × (p_{i,t} - c_i) × s_i(p_t)   if i ∈ N^{act}_t,  else 0
+Let A_t denote the active firms and p_i,t the price selected by seller i. Consumer choice follows a multinomial logit model with an outside option [3]. For an active seller,
 
-CS(p_t) = Q × σ_d × ln( ∑_{j ∈ N^{act}_t} exp((a_j - p_{j,t}) / σ_d) + exp(a_0 / σ_d) )
-```
+\[
+s_i(\mathbf p_t)=\frac{\exp((a_i-p_{i,t})/\sigma)}{\exp(a_0/\sigma)+\sum_{j\in A_t}\exp((a_j-p_{j,t})/\sigma)}.
+\]
 
-### 2.3 Capital Dynamics and Insolvency
-Capital evolves recursively across periods:
-```text
-K_{i,t+1} = max{ 0,  K_{i,t} + π_i(p_t) - Φ }
-```
-A suspended seller earns π_i = 0 but remains liable for fixed overhead Φ. Consequently, each suspension period drains exactly Φ capital. If T_ban × Φ ≥ K_{i,t}, a single suspension cycle permanently liquidates the rival.
+Here a_i is product quality, a_0 is the outside-option utility, and σ controls substitution sensitivity. For market size Q and marginal cost c_i, operating profit is π_i,t = Q(p_i,t − c_i)s_i for an active seller and zero otherwise. Consumer surplus is computed using the corresponding log-sum expression.
 
----
+Each solvent firm pays fixed operating cost Φ, including while suspended. Its capital changes as
 
-## 3. Regulatory Architectures & Proposition 1 Proofs
+\[
+K_{i,t+1}=\min\{K_{\max},\max(0,K_{i,t}+\pi_{i,t}-\Phi)\}.
+\]
 
-At the conclusion of period t, the watchdog audits a random sample Aud_t ⊆ N^{act}_t with audit budget |Aud_t| = B = 1. Rules are evaluated only when active sellers satisfy N_{act,t} ≥ N_min = 3.
+Zero capital is absorbing within an episode. The experiments summarized below cap reserves at K_max = K_0, with any surplus above the cap treated as paid out; this assumption makes firms more exposed than under unlimited accumulation. Episodes normally last 500 periods, with a reset to initial capital and active status. An episode ends early if no firm remains solvent; a sole surviving firm continues until the horizon. This episodic implementation is not an infinite-horizon market.
 
-```
-┌─────────────────┬──────────────────────────────────────────┬──────────────────────────────────────────┐
-│ Rule Type       │ Reference Benchmark (r_t)                │ Violation Flag Condition (F_{i,t} = 1)   │
-├─────────────────┼──────────────────────────────────────────┼──────────────────────────────────────────┤
-│ Mean-Ratio      │ r_t = (1 / N_{act}) ∑_{j} p_{j,t}        │ p_{i,t} > (1 + δ) × r_t                  │
-│ Median-Ratio    │ r_t = median_{j} {p_{j,t}}               │ p_{i,t} > (1 + δ) × r_t                  │
-│ Price Cap       │ Absolute ceiling p^cap                   │ p_{i,t} > p^cap                          │
-│ Z-Score (Ref)   │ Z_{i,t} = (p_{i,t} - mean_p) / std_p     │ Z_{i,t} > τ_z                            │
-└─────────────────┴──────────────────────────────────────────┴──────────────────────────────────────────┘
-```
-If firm i ∈ Aud_t and F_{i,t} = 1, its timer updates to τ_{i,t+1} = T_ban; otherwise, τ_{i,t+1} = max{τ_{i,t} - 1, 0}.
+### 2.3 Watchdog rules
 
-### Proposition 1 (Vulnerability Analysis)
-*Suppose k active sellers price at a discounted price L, while the remaining N - k active sellers price at an ordinary price H > L.*
+The watchdog audits up to B active firms uniformly at random. Flags lead to suspension only for audited firms. The watchdog operates when the active count reaches the configured minimum N_min. We compare:
 
-1. **Mean-Ratio Rule:** High-priced sellers are flagged if and only if k > δ(N - k) and:
-   ```text
-   H / L > ((1 + δ) × k) / (k - δ(N - k))
-   ```
-   For a single undercutter (k = 1), this reduces to the necessary condition:
-   ```text
-   δ < 1 / (N - 1)   and   H / L > (1 + δ) / (1 - δ(N - 1))
-   ```
-   *Proof:* The market mean price is r_t = (k L + (N - k) H) / N. The flag condition H > (1 + δ) r_t expands to H > (1 + δ)(k L + (N - k) H) / N, which rearranges directly to N H - (1 + δ)(N - k) H > (1 + δ) k L, yielding H [k - δ(N - k)] > (1 + δ) k L. When k = 1 and N = 4, the threshold requires δ < 1/3 ≈ 0.333. A solitary actor can manipulate the mean whenever δ is tighter than 33.3%.
+| Rule | Condition that flags active seller i |
+| --- | --- |
+| Mean ratio | p_i > (1 + δ) mean(p_j : j ∈ A_t) |
+| Median ratio | p_i > (1 + δ) median(p_j : j ∈ A_t) |
+| Price cap | p_i > p_cap |
 
-2. **Median-Ratio Rule:** For k < N / 2, the median price is identically H. The flag condition H > (1 + δ) H requires 1 > 1 + δ, which is impossible for any positive threshold δ > 0.
-   *Proof:* With N = 4, if k = 1 prices at L and 3 price at H, the ordered price vector is (L, H, H, H), whose median is H. A single undercutter has zero leverage over the median. Predatory framing requires a collusive majority bloc of at least k ≥ 2 sellers.
+Thresholds are strict. N_min is an important modelling choice: after enough sellers leave or are suspended, regulation can stop. It is therefore part of the experiment rather than an incidental implementation detail.
 
-3. **Price Cap Rule:** Flags depend solely on whether individual prices exceed p^cap. Undercutting peer prices does not alter absolute thresholds.
+### 2.4 Why can the mean be manipulated?
 
----
+Suppose k of N active sellers choose L and the other N − k choose H > L ≥ 0. Under the mean rule, a high-price seller is flagged exactly when
 
-## 4. Behavioral Traits & Counterfactual Harm Attribution
+\[
+H[k-\delta(N-k)]>(1+\delta)kL.
+\]
 
-Each seller is characterized by a private trait vector θ_i = (λ_i, μ_i, α_i):
-- **Altruism (λ_i ∈ [0, 1]):** Weight placed on external social surplus.
-- **Ethics (μ_i ≥ 0):** Penalty weight for causing rival bans.
-- **Risk Aversion (α_i ∈ [0, 2]):** Constant Relative Risk Aversion (CRRA) parameter.
+For H > 0 and nonnegative δ, this requires k > δ(N − k). If L > 0, the equivalent price-ratio condition is
 
-### 4.1 Trait-Adjusted Reward
-Normalized by market size Q:
-```text
-R_i = U_{α_i}(π_i(p_t) / Q + ε) + λ_i × W_{ext,i}(p_t) - μ_i × C_{harm}(i, t)
-```
-where ε = 1e-4 prevents singularity during zero-profit suspensions, external surplus is W_{ext,i} = (CS + ∑_{j ≠ i} π_j) / (N × Q), and CRRA utility evaluates to:
-```text
-U_α(x) = (x^(1 - α) - 1) / (1 - α)   for α ≠ 1,  and  ln(x) for α = 1
-```
+\[
+\frac{H}{L}>\frac{(1+\delta)k}{k-\delta(N-k)}.
+\]
 
-### 4.2 Counterfactual Harm Attribution (C_harm)
-To penalize only true predatory framing, seller i is charged only when its departure from the competitive Bertrand-Nash equilibrium price p_i^N was the decisive causal trigger for rival j's suspension:
-```text
-C_{harm}(i, t) = ∑_{j ≠ i} I( j ∈ Aud_t,  F_j(p_t) = 1,  F_j(p_t^{(i → N)}) = 0 )
-```
-where p_t^{(i → N)} substitutes firm i's price with its Bertrand-Nash price p_i^N, holding rival prices and the audit sample Aud_t constant.
+The inequality before division also covers L = 0, a price included in our grid. For example, with three active sellers, prices (0, 0.30, 0.30), and δ = 0.10, the mean is 0.20 and both high-price sellers exceed 0.22. Being flagged does not guarantee suspension: the seller must also be selected for audit.
 
----
+For the same two-price construction, if fewer than half of the sellers choose L, the median remains H and the high-price sellers cannot be flagged for δ ≥ 0. A cap depends only on the seller's own price, so another seller's price cannot directly change that seller's flag. These are statements about flagging under the specified rules, not guarantees of welfare or immunity from all strategic behavior. The median result also depends on the two-price construction; real price distributions may be more complicated.
 
-## 5. Empirical Methodology & Diagnostic Refinements
+## 3. Algorithms and evaluation
 
-### 5.1 Tabular Q-Learning Architecture
-Each seller runs independent tabular Q-learning with decaying ε-greedy exploration:
-```text
-Q_i(s, a) ← Q_i(s, a) + α_t [ R_i + γ max_{a'} Q_i(s', a')(1 - done) - Q_i(s, a) ]
-```
-Observations s_t = (p_{t-1}, b_t, κ_{i,t}) are mapped to flat indices using Horner radix encoding:
-- Price vector p_{t-1} across N sellers with M levels: M^N states.
-- Ban vector b_t across N sellers: 2^N states.
-- Capital bin κ_{i,t} ∈ {Low: K ≤ 2Φ, Mid: 2Φ < K ≤ 5Φ, High: K > 5Φ}: 3 states.
+### 3.1 Learning and benchmarks
 
-```
-Total State Space:
-- Under N = 3, M = 11: 11^3 × 8 × 3 = 31,944 states (~3.2 × 10^4).
-- Under N = 4, M = 7:  7^4 × 16 × 3 = 115,248 states (~1.1 × 10^5 states).
-```
+Each learning seller maintains a table of action values and chooses prices using ε-greedy exploration. The ordinary one-step Q-learning update is
 
-### 5.2 State Visitation & Exploration Diagnostics (Feedback Item 1)
-To verify whether non-discovery of framing is due to intrinsic unprofitability versus exploration sparsity, each agent tracks exact state visitations via `state_visit_counts`. We report:
-- `unique_states_visited`: Total distinct states visited.
-- `state_coverage_ratio`: Fraction of total state space explored.
-- `effective_states_visited`: States visited at least 5 times.
+\[
+Q_i(o,a)\leftarrow Q_i(o,a)+\eta\left[r_i+\gamma\max_{a'}Q_i(o',a')-Q_i(o,a)\right].
+\]
 
-### 5.3 Harm Metric W Validation on Scripted Attacker (Feedback Item 2)
-Before evaluating reinforcement learning agents, the counterfactual harm engine was validated against an intentional `scripted_attacker` policy:
-- Firm 0 deliberately crashes its price to marginal cost p^(1) when N_act ≥ 3, and extracts monopoly price p^M once rivals are eliminated.
-- **Results:**
-  - **Mean-Ratio Rule:** W = **1.0000** (**100%** causal harm attribution).
-  - **Median-Ratio Rule:** W = **0.0000** (0 rival bans induced).
-  - **Price Cap Rule:** W = **0.0000** (0 rival bans induced).
-  This confirms that the evaluation metric W provides an uncompromised ground-truth signal.
+The implementation also accumulates discounted rewards across a suspension before closing the pending transition. Q-values are updated during training; evaluation freezes the learned tables and uses greedy actions. Learning rate η = 0.10, discount factor γ = 0.95, and exploration decays from 1.0 to 0.01 over 60% of the training run. These independently learning agents face changing opponents, so standard single-agent convergence guarantees do not directly establish convergence here [2].
 
-### 5.4 N = 4 Continuous Market Architecture (Feedback Item 3)
-Under N = 3, once 1 firm is banned, active headcount drops to N_act = 2 < N_min = 3, shutting down platform regulation completely. With N = 4, post-ban headcount remains N_act = 3 ≥ N_min = 3, allowing sequential multi-firm elimination dynamics.
+The main controlled comparison uses one learner and two sellers fixed at their initial-market discrete Bertrand–Nash prices. The benchmark is computed on the same price grid. Other experiments let every seller learn. The repository also implements reduced-state exact dynamic programming, but we do not claim a measured DP–learning gap here: a fully matched comparison with traceable outputs is not established by the files used for this report.
 
----
+The baseline learning reward uses normalized operating profit, not profit after fixed costs; overhead affects capital and survival. In trait experiments the reward additionally uses an anchored CRRA utility, a weighted external-surplus term, and a penalty for model-defined counterfactual harm. The implemented utility shift is ε = 0.01. All firms in a trait condition receive the same selected trait value; these sweeps do not represent a mixed population.
 
-## 6. Experimental Results & Hypothesis Evaluation
+### 3.2 Outcome measures and attribution
 
-```
-┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                               Statistical Hypothesis Testing Results                                   │
-├────────────┬─────────────────────────────┬────────────────────────────────────┬────────────────────────┤
-│ Hypothesis │ Target Relationship         │ Empirical Finding                  │ Supported?             │
-├────────────┼─────────────────────────────┼────────────────────────────────────┼────────────────────────┤
-│ **H1**     │ Mean > Median ≈ Cap         │ Mean: 0.0865 > Median: 0.0094 >     │ **YES**                │
-│            │ (Vulnerability Ordering)    │ Cap: 0.0000 (p < 0.05)             │ (Strict Ordering)      │
-├────────────┼─────────────────────────────┼────────────────────────────────────┼────────────────────────┤
-│ **H2**     │ Framing requires            │ Framing absent when T_ban < K0/Φ;  │ **YES**                │
-│            │ T_ban ≥ K0 / Φ              │ emerges when ban drains buffer     │ (Phase Transition)     │
-├────────────┼─────────────────────────────┼────────────────────────────────────┼────────────────────────┤
-│ **H3**     │ Weaponization decreases     │ Spearman rho = -0.1969             │ **YES**                │
-│            │ with ethics penalty μ       │ Monotonic downward slope           │ (Trait Suppression)    │
-├────────────┼─────────────────────────────┼────────────────────────────────────┼────────────────────────┤
-│ **H4**     │ Learnability Gap: Q-learners│ Exact DP finds framing;            │ **YES**                │
-│            │ explore subset of DP region │ Q-learners reach 8.75% coverage    │ (Sparsity Quantified)  │
-└────────────┴─────────────────────────────┴────────────────────────────────────┴────────────────────────┘
-```
+- **Fresh bans per episode** counts new suspensions.
+- **Unilateral weaponization rate W** is the fraction of fresh bans for which replacing one rival's current price with its fixed Nash benchmark removes the flag. The recorded code returns zero when there are no bans; in that case the ratio has no events and is not evidence of measured zero risk.
+- **Attributed bankruptcies per episode** counts bankruptcies while serving a ban whose flag was attributed to a unilateral or joint Nash-price counterfactual. For a joint counterfactual, the implementation assigns one active rival as the bookkeeping inducer. This is a model-defined proxy, not a full trajectory-level causal estimate; in particular it does not prove intent or that bankruptcy would have been avoided in a replay without that action.
+- **Other bankruptcies** are total bankruptcies minus those counted by that proxy. The label does not identify their actual cause.
+- **Survivors** are initial firms minus bankruptcies per episode. The reported learner profit is average operating profit per evaluation period, not a discounted lifetime return or net profit after fixed costs.
 
-### 6.1 H1: Regulatory Vulnerability Ranking
-Decentralized Q-learning sweeps across 3 static rules demonstrate that:
-- **Mean-Ratio:** Weaponization Rate W = **0.0865** (**8.65%** of bans induced by undercutting).
-- **Median-Ratio:** Weaponization Rate W = **0.0094** (**0.94%** of bans induced).
-- **Price Cap:** Weaponization Rate W = **0.0000** (**0.00%** of bans induced).
+Seed-level runs are the units summarized below. Episodes within one frozen-policy run share a trained policy and are not independent training replications. W is reported as a mean of per-seed rates, not as a pooled ratio over all bans.
 
-The empirical vulnerability ordering strictly matches the theoretical ranking:
-`Mean-Ratio (0.0865) > Median-Ratio (0.0094) > Price Cap (0.0000)`
+## 4. Experimental design
 
-Mann-Whitney U testing confirms that Mean-Ratio exhibits statistically significant elevation in induced bans over Median-Ratio (p = **0.050**) and Price Cap (p = **0.032**).
+The main study uses N = 3, 11 prices uniformly spaced from 0 to 1.5, Q = 1, quality a_i = 2, a_0 = 0, marginal costs 0, σ = 0.25, Φ = 0.05, audit budget B = 1, and N_min = 2. The discrete Nash benchmark in this setting is p = 0.30 with operating profit approximately 0.100 per firm and period. The benchmark profit exceeds fixed cost, although other prices or suspensions can still drain capital.
 
-### 6.2 H2: Liquidation Barrier & Capital Dynamics
-In Figure 1 ([figure_1_multi_rule_phase_diagram.png](file:///Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/plots/figure_1_multi_rule_phase_diagram.png)), exact Dynamic Programming confirms that predatory undercutting is unprofitable whenever ban duration is shorter than the capital liquidation threshold:
-```text
-T_ban < K0 / Φ
-```
-When T_ban < K0 / Φ, the rival survives the suspension and resumes Bertrand-Nash competition upon return, leaving the attacker with the unrecouped cost of the price crash. Once T_ban ≥ K0 / Φ, a single suspension causes permanent liquidation, unlocking supra-competitive monopoly rents.
+The saved single-learner experiment uses 20 seeds per condition, 2 million training steps and 50,000 frozen-policy evaluation steps per seed, with 100 evaluation episodes. The lethal configuration has K_0 = 0.15 and T_ban = 4; the initially non-lethal configuration has K_0 = 0.50 with the same ban duration. A single full suspension drains 0.20, excluding any other intervening cash flows. “Non-lethal” therefore refers only to one ban starting from the full initial buffer, not an entire episode with repeated bans.
 
-### 6.3 H3: Behavioral Trait Modulation
-Parametric sweeps over private ethics weight μ demonstrate that:
-- Pure predatory sellers (μ = 0.0) actively discover and exploit relative undercutting.
-- As μ increases to 1.0, weaponization rate falls monotonically (Spearman rank correlation rho = **-0.1969**).
-- Increasing Constant Relative Risk Aversion α similarly suppresses framing, as risk-averse agents reject the lottery of sacrificing current stage profits for uncertain future monopoly rents.
+We additionally reran the same five conditions with five new seeds, 9020–9024. This rerun was chosen after inspection of the existing results and is an **exploratory replication**, not a preregistered confirmatory test. The all-learning controls use ten seeds per condition and 10 million training steps. The trait sweep also uses ten seeds per value. Since many configurations were explored and no preregistered comparison or multiplicity correction is documented, the findings below are descriptive; we do not use significance thresholds to claim confirmation.
 
-### 6.4 H4: Learnability Gap & State Coverage Diagnostics
-Comparing exact DP frontiers with tabular Q-learning surfaces reveals the **Learnability Gap**:
-- Exact DP identifies framing as optimal across a wide parameter regime.
-- Tabular Q-learners explore only **2,795 distinct states** (**8.75%** exploration coverage) during short horizons.
-- Because predatory framing requires an agent to execute an unprompted multi-step sequence (undercutting → waiting for rival audit → rival bankruptcy → raising price to monopoly), exploration sparsity is the primary empirical bottleneck preventing learners from reaching the theoretical optimum.
+## 5. Results
 
----
+### 5.1 A learner against fixed-price rivals
 
-## 7. Advanced Extensions
+| Rule and initial buffer | Mean W | Fresh bans / episode | Attributed rival bankruptcies / episode | Survivors | Learner profit / period |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Mean, δ = 0.10, lethal | 1.000 | 2.000 | 2.000 | 1.000 | 1.312 |
+| Mean, δ = 0.20, lethal | 0.994 | 1.985 | 1.974 | 1.007 | 1.283 |
+| Mean, δ = 0.10, initially non-lethal | 0.971 | 16.070 | 1.938 | 1.062 | 1.163 |
+| Median, δ = 0.10, lethal | — | 0.000 | 0.000 | 3.000 | 0.100 |
+| Cap = 0.60, lethal | — | 0.000 | 0.000 | 3.000 | 0.100 |
 
-### 7.1 Extension A: Slow-Timescale Adaptive Regulator
-In [extension_a_cyclic_dynamics.png](file:///Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/plots/extension_a_cyclic_dynamics.png), the regulator updates threshold δ over macro-epochs K_macro based on consumer surplus and false-positive innocent bans:
-```text
-max_ϕ E[ ∑_t γ_R^t (CS(p_t) - κ |Aud_t| - η FP_t) ]
-```
-**Empirical Finding (Stackelberg Cycles):**
-1. Watchdog initializes at tight threshold δ = 0.18.
-2. Predatory attacker exploits relative rule; false-positive innocent bans surge.
-3. Watchdog relaxes threshold (δ → 0.35 - 0.40) to reduce penalty costs.
-4. At relaxed thresholds, single undercutting cannot satisfy Proposition 1's bound (H/L required explodes), eliminating framing leverage.
-5. In the absence of price dispersion, watchdog re-tightens δ to protect consumer surplus, restarting the cycle.
+*Table 1. Means across 20 seeds from [study_single.csv](results/Krishs-MacBook-Air/all/study_single.csv). A dash indicates no bans, for which W's denominator is zero. The simulator stores W = 0 in these cases. Counts are per episode; profit averages over evaluation periods.*
 
-### 7.2 Extension B: Out-of-Distribution Demand Shocks
-In [extension_b_demand_shock.png](file:///Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/plots/extension_b_demand_shock.png), sellers face exogenous panic surges:
-```text
-Q_t = Q × max{ 0,  1 + ψ I(mean_p_t > mean_p_{t-1}) + ξ_t }
-```
-- Evaluated across Ethical (all μ = 1.0), Predatory (all μ = 0.0), and Mixed cohorts across ψ ∈ {0.0, 0.25, 0.50, 0.75}.
-- **Finding:** Social welfare scales with panic volume (from **2.11** at ψ = 0.00 to **2.89** at ψ = 0.75). The periodic reset mechanism preserves market solvency, while ethical cohorts sustain lower bankruptcy frequencies than pure predatory cohorts.
+The mean-rule outcomes are consistent with the model's framing mechanism against these fixed rivals. In the δ = 0.10 lethal condition, the learner's mean operating profit of 1.312 is higher than the initial three-firm Nash operating-profit benchmark of 0.100; these quantities describe different market structures and are not a matched counterfactual estimate of net profit. The non-lethal condition still shows repeated bans and substantial attributed bankruptcy. Its initial reserve is enough to survive one full ban, but the data do not establish the complete causal history of each bankruptcy. It would be incorrect to conclude that framing requires T_ban Φ ≥ K_0.
 
-### 7.3 Extension C: Defended Watchdog (EMA Smoothing & Escrow Penalty Defense)
-In [defended_watchdog_comparison.png](file:///Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/plots/defended_watchdog_comparison.png), we evaluate two regulatory defenses designed to neutralize predatory framing:
-1. **Exponential Moving Average (EMA) Reference Price Benchmark:**
-   ```text
-   r_t = β r_{t-1} + (1 - β) mean(p_t)
-   ```
-   Under the vulnerable vanilla mean rule (β = 0.0), a scripted attacker achieves W = **1.0000** with **33.0** induced bans. Adding memory inertia (β = 0.85) slashes bans to **6.0**. At β ≥ 0.90 (e.g. β = 0.95), historical price inertia completely buffers single-period predatory crashes: innocent rivals are never flagged, achieving complete immunization (W = **0.0000**, fresh bans = **0.0**).
-2. **Graduated Escrow Penalty Defense:**
-   Rather than executing market shutdowns, audited flagged firms remain active, and excess profits above Bertrand-Nash are diverted to escrow:
-   ```text
-   penalized_profit_i = min(profit_i, nash_profit_i)
-   ```
-   Because rivals remain operational to clear demand, the attacker never secures monopoly rents. Predatory undercutting becomes self-destructive, and shutdown-induced bankruptcies drop to **0.00%**.
+![Original and new-seed single-learner results](plots/final_report/single_learner.png)
 
-### 7.4 Extension D: Deep RL / DQN Continuous Scalability Ablation (N = 5)
-In [dqn_continuous_ablation.png](file:///Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/plots/dqn_continuous_ablation.png), we deploy a Deep Q-Network (DQN) with continuous state representations `[p_t / p_max, b_t, K_t / K0]` (input dim = 2N + 1) to evaluate continuous scalability:
-- In discrete tabular Q-learning, the state space scales exponentially: N = 3 has 10,976 states, N = 4 has 115,248 states, and N = 5 explodes to **1,613,472 states** (|S| = 7^5 × 2^5 × 3), rendering tabular convergence computationally intractable due to severe exploration sparsity.
-- DQN compresses the state space to an **11-dimensional continuous vector** for N = 5.
-- **Empirical Finding:** Under neural function approximation, predatory framing remains a significant hazard under the Mean-Ratio rule (W = **0.075**, **67** bans), but is strongly suppressed under Median-Ratio (W = **0.013**, **78** bans), proving that watchdog weaponization is an intrinsic architectural flaw of relative benchmark design, not merely an artifact of tabular discretization.
+*Figure 1. Means for the original 20 seeds and five additional seeds per condition. The new-seed means for attributed bankruptcies are 1.983, 2.000, 1.912, 0.000, and 0.000 in the order shown. The repeated pattern is useful evidence of reproducibility under this configuration, not a guarantee across markets.*
 
-### 7.5 Extension E: Evolutionary Strategy Tournament & Ecological Dynamics
-In [evolutionary_tournament_dynamics.png](file:///Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/plots/evolutionary_tournament_dynamics.png), we simulate an Axelrod-style multi-generation tournament across 4 seller archetypes (Pure Predator μ=0, Ethical μ=1, Altruist λ=0.5, Risk-Averse α=1.5) governed by discrete Replicator Dynamics:
-- **Vulnerable Watchdog (Mean-Ratio):** The Predator archetype capitalizes on weaponization, maintaining a dominant market share (**26.1%**) while suppressing Ethical sellers to **14.7%**.
-- **Robust Watchdog (Median-Ratio):** Without framing leverage, the Predator's advantage declines (**19.5%**), while Risk-Averse sellers expand to **45.3%** by avoiding aggressive price wars.
-- **Defended Watchdog (EMA + Escrow):** The cooperative regime stabilizes completely: Altruists become the dominant archetype (**39.6%**), supported by Risk-Averse sellers (**30.0%**), demonstrating that robust mechanism design fosters evolutionary selection toward prosocial equilibria.
+### 5.2 All-learning controls
 
----
+| Condition | Attributed bankruptcies / episode | Other bankruptcies / episode | Survivors |
+| --- | ---: | ---: | ---: |
+| Cap = 0.60, N_min = 2 | 0.000 | 1.997 | 1.003 |
+| Cap = 10, effectively inactive for this grid | 0.000 | 0.000 | 3.000 |
+| Cap = 0.60, N_min = 1 | 0.000 | 0.000 | 3.000 |
 
-## 8. Policy & Mechanism Design Recommendations
+*Table 2. Means across ten seeds per condition from [cap/no-effective-cap](results/athena/controls/control_cap_noreg.csv) and [N_min = 1](results/athena/controls/control_cap_nmin1.csv) controls. All three sellers learn. The controls were run with an ad-hoc driver, which is not preserved in full.*
 
-Based on theoretical proofs and empirical sweeps, platform designers should adopt the following principles:
+![Survivors in all-learning controls](plots/final_report/controls.png)
 
-1. **Eliminate Relative Mean Rules:** Relative price metrics based on the market mean create an unmitigated attack surface for strategic deflation.
-2. **Deploy Median-Ratio or Price Caps:** Median-ratio rules require a majority collusive coalition (k ≥ N/2) to manipulate, while absolute price caps are completely immune to peer undercutting.
-3. **Calibrate Ban Durations Against Seller Capital Buffers:** Platforms should never set ban durations such that T_ban × Φ ≥ K_min. Temporary suspensions must never be allowed to inadvertently execute permanent capital liquidations.
-4. **Graduated Enforcement:** Platforms should utilize escrow or warning flags rather than immediate zero-revenue suspensions to prevent competitors from weaponizing the compliance mechanism.
+*Figure 2. Mean survivors in the three saved control conditions.*
 
----
+Under the cap with N_min = 2, almost two firms per episode go bankrupt without an attributed framing event. Thus market concentration or bankruptcy alone cannot establish watchdog manipulation. The control with N_min = 1 has a different outcome, but these summaries alone do not establish the mechanism producing the difference. In the all-learning robustness study, mean-rule attributed bankruptcies were higher than median-rule values for each recorded parameter setting, but substantial other bankruptcies appeared under both rules; for example, at δ = 0.10 the respective means were 0.513 and 0.253 attributed bankruptcies and 1.490 and 1.748 other bankruptcies per episode. These comparisons are exploratory and do not establish a universal ranking.
 
-## 9. Conclusion
+### 5.3 Behavioral traits
 
-This study provides the first systematic game-theoretic and multi-agent reinforcement learning analysis of watchdog weaponization. We proved that relative regulatory rules create an unintended attack surface enabling predatory sellers to eliminate honest competitors via strategic deflation. Through exact Dynamic Programming, decentralized Q-learning sweeps, and parametric trait ablations, we demonstrated that:
-1. Mean-ratio rules are uniquely vulnerable, whereas median-ratio and price caps neutralize unilateral undercutting.
-2. Framing emergence requires ban durations exceeding rival capital reserves.
-3. Private ethics penalties and risk aversion monotonically suppress weaponization.
-4. Adaptive regulators exhibit cyclic Stackelberg dynamics when challenged by adversarial attackers.
+The saved all-learning ethics sweep gives mean W values of 0.166, 0.189, 0.221, 0.170, 0.182, and 0.175 for ethics weights 0, 0.01, 0.03, 0.1, 0.3, and 1 respectively. The mean is not monotonically decreasing. The altruism and risk-aversion group means are also not strictly monotonic, although risk-aversion means tend to be lower at the largest values in this particular sweep. Variation across seeds and the choice of metric matter; these results do not establish a general absence or presence of trait effects.
 
----
+![Ethics sweep by seed](plots/final_report/ethics.png)
+
+*Figure 3. Individual seed-level W values and their group means; ten training seeds per ethics value. The same numeric seeds are used across settings, but this does not by itself establish independent or paired trajectories after policies diverge.*
+
+## 6. Discussion and limitations
+
+The algebra and controlled single-learner simulation make a narrow but meaningful case: an endogenous mean benchmark can allow one seller's price to change whether fixed-price rivals are flagged. The median and cap baselines remove that particular unilateral channel in the two-price example. The all-learning controls show why that result must not be generalized to every bankruptcy, rule, or market setting. A rule can affect behavior and survival even when the counterfactual attribution metric reports no framing.
+
+The main limitations are:
+
+1. **Synthetic market and finite horizon.** Demand, identical products, price grid, overhead, reserve cap, and episode resets are modelling choices. Actual platforms may differ in enforcement, financing, demand, and seller behavior.
+2. **Partial observation and learning dynamics.** Independent Q-learners see compressed observations and face changing opponents. A frozen greedy policy after a fixed training budget is not proof of equilibrium or optimality.
+3. **Attribution.** Nash-price flag counterfactuals are useful diagnostics, but the bankruptcy proxy does not replay the market without the intervention. Joint attribution to one seller is a bookkeeping convention, and W is undefined if no bans occur.
+4. **Comparability.** The single-learner comparison uses fixed Nash-price rivals, whereas the controls and trait study have all sellers learning. Results from these settings should not be treated as estimates of the same causal effect.
+5. **Statistical and provenance limits.** The study includes multiple exploratory sweeps. The saved control driver was ad hoc, and some legacy figures lack underlying checked-in data. A small five-seed replication does not replace a preregistered study, confidence intervals, or broader sensitivity analysis.
+
+Useful next steps are a committed driver for every control, matched trajectory-level counterfactual replays, robustness to uncapped capital and alternative horizons, and a prospective experiment plan specifying primary outcomes, seed counts, and comparisons. A matched exact-DP versus learning study would help distinguish feasibility from learnability. The existing EMA, escrow, demand-shock, and DQN extensions are possible follow-on work; their historical figures are not used as evidence in this report.
+
+## 7. Conclusion
+
+This project formulated and implemented a multi-agent pricing market with a regulatory watchdog. A simple derivation identifies when undercutting can make high-price sellers violate a mean-based rule. Simulations show the mechanism under a specific one-learner, fixed-rival configuration, including when one ban alone is insufficient to exhaust the initial buffer. Other controls show that bankruptcies can arise without the simulator attributing them to framing, and the saved trait results do not support a monotonic ethics effect. The study illustrates both a potential weakness of peer-dependent regulation and the importance of separating a precise mechanism from broader claims about welfare, intent, or real markets.
 
 ## References
 
-1. Calvano, E., Calzolari, G., Denicolò, V., & Pastorello, S. (2020). *Artificial intelligence, algorithmic pricing, and collusion.* American Economic Review, 110(10), 3267–3297.
-2. Klein, T. (2021). *Autonomous algorithmic collusion: Q-learning under sequential pricing.* RAND Journal of Economics, 52(3), 538–558.
-3. Salop, S. C., & Scheffman, D. T. (1983). *Raising rivals' costs.* American Economic Review, 73(2), 267–271.
-4. Harrington, J. E. (2018). *Developing competition law for collusion by autonomous artificial agents.* Journal of Competition Law & Economics, 14(3), 331–363.
-5. Watkins, C. J., & Dayan, P. (1992). *Q-learning.* Machine Learning, 8, 279–292.
+1. Calvano, E., Calzolari, G., Denicolò, V., & Pastorello, S. (2020). Artificial intelligence, algorithmic pricing, and collusion. *American Economic Review, 110*(10), 3267–3297. https://doi.org/10.1257/aer.20190623
+2. Watkins, C. J. C. H., & Dayan, P. (1992). Q-learning. *Machine Learning, 8*, 279–292. https://doi.org/10.1007/BF00992698
+3. McFadden, D. (1974). Conditional logit analysis of qualitative choice behavior. In *Frontiers in Econometrics*. Academic Press. https://eml.berkeley.edu/reprints/mcfadden/zarembka.pdf
 
+## Appendix: Reproducing the reported results
+
+From the repository root, install the dependencies in `requirements.txt` and build the native engine with `python scripts/build_engine.py`. Then run:
+
+```text
+python scripts/audit_saved_results.py
+python scripts/plot_report_results.py
+python experiments/replicate_report.py
+python -m pytest -q --ignore=tests/test_dqn_agent.py
+```
+
+The audit prints summaries of the saved original and control CSVs; the plot script reads those CSVs and the separately saved new-seed run. The replication script reruns 25 native-engine jobs and overwrites only `results/report_replication/single_learner.csv`; preserve that file first if comparing runs. Native binaries, toolchains, platforms, and random-number implementations may affect exact reproduction. The full test suite additionally requires PyTorch; it was not installed in the environment used for this report. On this machine, the other 95 tests passed. A single historical seed reproduced its recorded outcome on this machine, but that is not a verification of every historical run. Replication environment details are recorded in [replication metadata](results/report_replication/metadata.txt).
