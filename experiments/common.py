@@ -52,6 +52,8 @@ class Job:
     eval_steps: int = 50_000
     explore_frac: float = 0.6
     episode_length: int = 500
+    penalty_mode: str = "shutdown"          # "shutdown" (ban) or "escrow" (divert profit above Nash)
+    ema_beta: float = 0.95                     # memory of the EMA_MEAN_RATIO reference
     extra: Dict[str, object] = field(default_factory=dict)  # copied into the output row
 
 
@@ -78,7 +80,7 @@ def build(job: Job) -> MultiAgentTrainer:
         warmup_steps=0, episode_length=job.episode_length, rule_type=RuleType(job.rule),
         rule_param=job.rule_param, eval_window=min(job.train_steps, 200_000),
         firm_policies=job.policies or ["q"] * job.num_firms, agent_traits=traits,
-        seed=job.seed, backend="native",
+        seed=job.seed, backend="native", penalty_mode=job.penalty_mode, ema_beta=job.ema_beta,
     )
     return MultiAgentTrainer(cfg)
 
@@ -98,6 +100,7 @@ def run_job(job: Job) -> Dict[str, object]:
         "rule_param": job.rule_param, "n_min": job.n_min, "K0": tr.m_cfg.initial_capital,
         "phi": job.fixed_cost, "T_ban": job.ban_duration, "B": job.audit_budget, "M": job.price_levels,
         "train_steps": job.train_steps,
+        "penalty_mode": job.penalty_mode, "ema_beta": job.ema_beta,
         "nash_price": float(tr.nash_prices[0]), "nash_profit": float(tr.nash_profits[0]),
         # greedy (frozen) outcome
         "kills_per_ep": float(g.kills_by.sum()) / ep,

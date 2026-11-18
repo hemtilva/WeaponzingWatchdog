@@ -57,7 +57,7 @@ pdfkeywords={Multi-Agent Reinforcement Learning, Regulatory Exploitation, Algori
 \maketitle
 
 \begin{abstract}
-Marketplaces suspend sellers whose prices look abnormal relative to the market. When the reference is the \emph{average} price, every seller partly controls the benchmark used to judge its rivals: by undercutting, a seller can make a rival's unchanged price look like gouging and get it suspended. We model this as a Markov game between learning sellers under a static audit-and-ban watchdog with logit demand, capital reserves, and bankruptcy, and we compare a mean-ratio rule, a median-ratio rule, and an absolute price cap. A single tabular Q-learner facing two Nash-pricing rivals learns to frame both of them under the mean rule in all 20 seeds (2.00 attributed rival bankruptcies per episode), and never under the median rule or the cap. When all sellers learn, framing still emerges and grows with training: under the mean rule it rises from 0.51 to 1.34 attributed bankruptcies per episode between $10^7$ and $10^9$ training steps, against 0.56 under the median rule. A four-seller market shows the same ranking. Step-level traces show a second, rule-independent failure: when audits stop below a minimum number of active firms, sellers gamble on lethal bans to become the last, unregulated survivor. Risk aversion and altruism reduce framing, and sufficiently risk-averse sellers never frame; a per-ban ethics penalty has no detectable effect. All numbers in this paper are produced by scripts in our public repository.
+Marketplaces suspend sellers whose prices look abnormal relative to the market. When the reference is the \emph{average} price, every seller partly controls the benchmark used to judge its rivals: by undercutting, a seller can make a rival's unchanged price look like gouging and get it suspended. We model this as a Markov game between learning sellers under a static audit-and-ban watchdog with logit demand, capital reserves, and bankruptcy, and we compare a mean-ratio rule, a median-ratio rule, and an absolute price cap. A single tabular Q-learner facing two Nash-pricing rivals learns to frame both of them under the mean rule in all 20 seeds (2.00 attributed rival bankruptcies per episode), and never under the median rule or the cap. When all sellers learn, framing still emerges and grows with training: under the mean rule it rises from 0.51 to 1.34 attributed bankruptcies per episode between $10^7$ and $10^9$ training steps, against 0.56 under the median rule. A four-seller market shows the same ranking. Step-level traces show a second, rule-independent failure: when audits stop below a minimum number of active firms, sellers gamble on lethal bans to become the last, unregulated survivor. Risk aversion and altruism reduce framing, and sufficiently risk-averse sellers never frame; a per-ban ethics penalty has no detectable effect. Of two defences, a time-smoothed (EMA) reference only delays framing, and learners discover the slower attack, while replacing suspensions with escrowed fines removes framing entirely but leaves prices well above Nash. All numbers in this paper are produced by scripts in our public repository.
 \end{abstract}
 
 \keywords{Multi-Agent Reinforcement Learning \and Regulatory Exploitation \and Algorithmic Pricing \and Mechanism Vulnerability}
@@ -71,7 +71,7 @@ Marketplaces suspend sellers whose prices look abnormal relative to the market. 
 
 \paragraph{Research question and hypotheses.} \emph{For which regulatory rules and capital levels do independent learning sellers discover regulator-framing strategies, and how do their private traits modulate this?} Our proposal stated four hypotheses: \textbf{H1} the mean rule is exploitable by a single undercutter, the median and cap rules are not; \textbf{H2} framing pays only when one ban is lethal relative to the victim's capital; \textbf{H3} framing decreases with ethics, altruism, and risk aversion; \textbf{H4} learners find framing only in part of the region where exact analysis shows it is optimal.
 
-\paragraph{Contributions.} (i) A closed-form condition for when undercutting gets rivals flagged under mean and median rules, including a failure of the median rule we did not anticipate in the proposal (Proposition~\ref{prop:vuln}). (ii) A fast simulator with counterfactual harm attribution, validated against a scripted attacker. (iii) Evidence that Q-learners discover framing, that the mean rule is consistently more exploitable than the median, and that this gap only becomes clear with long training. (iv) A trace-level account of a second failure mode created by the audit threshold itself.
+\paragraph{Contributions.} (i) A closed-form condition for when undercutting gets rivals flagged under mean and median rules, including a failure of the median rule we did not anticipate in the proposal (Proposition~\ref{prop:vuln}). (ii) A fast simulator with counterfactual harm attribution, validated against a scripted attacker. (iii) Evidence that Q-learners discover framing, that the mean rule is consistently more exploitable than the median, and that this gap only becomes clear with long training. (iv) A trace-level account of a second failure mode created by the audit threshold itself. (v) Two defences, analysed in closed form and tested against learners.
 
 \paragraph{Related work.} Q-learning pricing agents have been studied in Bertrand and Cournot settings \citep{tesauro2002,waltman2008,calvano2020,klein2021}. Audit games study a budget-limited auditor and an auditee \citep{blocki2013}, and learned policy design against adaptive agents appears in two-level RL \citep{zheng2022}. These lines do not study rivals exploiting the audit rule to remove honest competitors.
 
@@ -109,6 +109,15 @@ Let $k$ of $N$ active sellers price at $L\ge0$ and the rest at $H>L$. (i) Under 
 \emph{Proof.} (i) Substitute the mean $(kL+(N-k)H)/N$ into \eqref{eq:mean} and rearrange. (ii)--(iv) are immediate from \eqref{eq:median} and \eqref{eq:cap}. \qed
 
 For example, with prices $(0,0.30,0.30)$ and $\delta=0.10$ the mean is $0.20$ and both rivals exceed $0.22$. Part (iii) matters for our design: once one firm has exited, a three-firm market under the median rule becomes vulnerable.
+
+\paragraph{Two defences.} An \emph{EMA reference} judges prices against $r_t=\beta r_{t-1}+(1-\beta)\bar p_t$ instead of the current mean $\bar p_t$, so a one-period undercut moves the reference only a fraction $1-\beta$ as far. An \emph{escrow} penalty does not suspend a flagged, audited seller; it removes that period's profit above the Nash level, $\max(0,\pi_{i,t}-\pi^N_i)$.
+
+\begin{proposition}[Defences]\label{prop:def}
+In the setting of Proposition~\ref{prop:vuln}(i), let one seller hold $L$ from period 0 while the rest stay at $H$, with $r_0=H$, and write $m=(L+(N-1)H)/N$. (i) Under the EMA rule, $r_t=m+(H-m)\beta^t$, so a high-price seller is flagged from period $t^\ast=\big\lceil \ln\!\frac{H/(1+\delta)-m}{H-m}\big/\ln\beta\big\rceil$ on, whenever the mean rule would flag it. EMA therefore delays framing by $t^\ast$ periods but does not prevent it. (ii) Under escrow, a seller at its Nash price that is flagged because a rival undercut earns less than its Nash profit, so its penalty is zero: framing cannot harm an honest seller.
+\end{proposition}
+\emph{Proof.} (i) Iterate the EMA recursion with constant $\bar p_t=m$ and solve $H>(1+\delta)r_t$. (ii) With $p_{i,t}=p^N_i$, a rival's lower price reduces $s_i$ under logit demand, so $\pi_{i,t}<\pi^N_i$ and $\max(0,\pi_{i,t}-\pi^N_i)=0$. \qed
+
+With $L=0.15$, $H=0.30$, and $\delta=0.10$, $t^\ast$ is 4, 16, and 79 periods for $\beta=0.80$, $0.95$, and $0.99$. At $L=0.15$ the attacker still earns $0.07>\Phi$ per period, so it can afford to wait.
 
 %% ===================================================================
 \section{Problem Formulation}
@@ -182,6 +191,7 @@ All learners, rule comparison & 3 of 3 & 10 & $10^7$--$10^9$ & rule, training le
 Four sellers & 4 of 4 & 10 & $3\times10^8$ & rule, $\Nmin\in\{2,3\}$ \\
 Cap controls + traces & 3 of 3 & 10 & $10^7$ & $p^{\mathrm{cap}}$, $\Nmin$ \\
 Traits & 3 of 3 & 10 & $10^7$, $3\times10^8$ & $\mu$, $\lambda$, $\alpha$ \\
+Defences & 1 of 3; 3 of 3 & 20; 10 & $2\times10^6$--$3\times10^8$ & EMA $\beta$, escrow \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -194,7 +204,7 @@ Before using $W$ and attributed bankruptcies on learners, we tested them on a \e
 \item $\Nmin=3\to2$. With $N=3$ and $\Nmin=3$, the first exit switches the watchdog off, so at most one rival can ever be framed. Following reviewer feedback, $\Nmin=2$ is our default and $N=4$ with $\Nmin=3$ is reported as a separate setting.
 \item The z-score rule was dropped: as our proposal showed, crashing the price buys nothing under it beyond a small undercut, so it does not isolate the mechanism.
 \item The exact dynamic-programming baseline (Step 1, H4) was implemented but returns negative exploitability gains, which is impossible for a best response; we therefore report no exact results and leave H4 untested (Section~\ref{sec:discussion}).
-\item Extensions A (learning regulator) and B (demand shock), plus a DQN ablation, an EMA-reference defence, and an evolutionary tournament, are implemented in the repository but were run before a fix to the learning dynamics and have not been rerun; we do not report them as evidence.
+\item Extensions A (learning regulator) and B (demand shock), plus a DQN ablation and an evolutionary tournament, are implemented in the repository but were run before a fix to the learning dynamics and have not been rerun; we do not report them as evidence. The EMA and escrow defences were rerun against learners (Section~\ref{sec:defences}).
 \end{itemize}
 
 %% ===================================================================
@@ -290,6 +300,36 @@ We varied one trait at a time for all three learners, and trained each configura
 
 \emph{Risk aversion} has the strongest effect. At $3\times10^8$ steps, attributed bankruptcies are $1.10\se{0.13}$ at $\alpha=0$, $0.23\se{0.07}$ at $\alpha=1$, and exactly zero at $\alpha\ge1.5$, where no seller is ever banned and all three survive in every seed (Spearman $\rho=-0.84$ between $\alpha$ and attributed bankruptcies). Framing is a gamble on a lethal audit; concave utility makes it unattractive. \emph{Altruism} also reduces framing, from $1.10$ to $0.09\se{0.08}$ at $\lambda=1$, with survivors rising from $0.95$ to $2.72$ ($\rho=-0.61$). At $10^7$ steps this effect was weak and non-monotonic, so a short-training study would have missed it. The \emph{ethics} penalty has no detectable effect at either training length: attributed bankruptcies stay between $1.09$ and $1.30$ for every $\mu\in[0,1]$ ($\rho=0.02$). A likely reason is scale. At $\mu=1$ the penalty for one framed ban equals about ten periods of Nash profit, while eliminating both rivals raises the learner's per-period profit from $0.10$ to about $1.3$ over a discounted horizon of $1/(1-\gamma)=20$ periods, a gain of roughly $24$ reward units against a penalty of at most $2$. A per-ban penalty this small cannot outweigh a monopoly.
 
+\subsection{Defences against learners}
+\label{sec:defences}
+
+\begin{table}[t]
+\centering
+\caption{Defences. Rival bankruptcies per episode against a scripted \emph{patient} attacker that holds 0.15 while audits run (5 seeds), against a single Q-learner after $2\times10^6$ and $3\times10^8$ training steps (20 seeds; fixed Nash rivals), and total bankruptcies, survivors, and mean price when all three sellers learn for $3\times10^8$ steps (10 seeds). Mean (standard error); $\delta=0.10$, lethal bans. The Nash price is 0.30.}
+\label{tab:defences}
+\small
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+& Patient attacker & \multicolumn{2}{c}{Single learner} & \multicolumn{3}{c}{All learners, $3\times10^8$} \\
+\cmidrule(lr){2-2}\cmidrule(lr){3-4}\cmidrule(lr){5-7}
+Rule & rival exits & $2\times10^6$ & $3\times10^8$ & bankruptcies & survivors & mean price \\
+\midrule
+Mean            & 2.00\se{0.00} & 2.00\se{0.00} & 2.00\se{0.00} & 2.08\se{0.02} & 0.92\se{0.02} & 1.44 \\
+Median          & ---           & ---           & ---           & 1.72\se{0.16} & 1.28\se{0.16} & 1.04 \\
+EMA $\beta{=}0.80$ & 2.00\se{0.00} & 0.00\se{0.00} & 2.00\se{0.00} & 0.72\se{0.29} & 2.28\se{0.29} & 0.50 \\
+EMA $\beta{=}0.95$ & 2.00\se{0.00} & 0.00\se{0.00} & 0.00\se{0.00} & 1.00\se{0.33} & 2.00\se{0.33} & 0.63 \\
+EMA $\beta{=}0.99$ & 2.00\se{0.00} & 0.00\se{0.00} & 0.00\se{0.00} & ---           & ---           & ---  \\
+Mean + escrow   & 0.00\se{0.00} & 0.00\se{0.00} & 0.00\se{0.00} & 0.00\se{0.00} & 3.00\se{0.00} & 0.69 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+We tested both defences of Proposition~\ref{prop:def} against learners (Table~\ref{tab:defences}). Because a framing attack under EMA unfolds over several periods, the one-period counterfactual behind $W$ misses part of it (Section~\ref{sec:discussion}), so we report bankruptcies directly.
+
+\emph{EMA delays framing but does not prevent it.} A scripted attacker that simply holds 0.15 bankrupts both rivals in every episode for every $\beta$ we tried, as Proposition~\ref{prop:def}(i) predicts. Learners find this more slowly. After $2\times10^6$ steps no single learner frames under any EMA rule, but after $3\times10^8$ steps the learner frames both rivals in all 20 seeds at $\beta=0.80$, where the attack needs 4 periods. At $\beta\ge0.95$, where it needs 16 or more periods, no learner found it. When all sellers learn, EMA reduces bankruptcies from 2.08 to 0.72--1.00 per episode, but the outcome splits across seeds: at $\beta=0.95$ five seeds end with one firm and five with all three. EMA thus protects only to the extent that learners fail to discover a slower attack.
+
+\emph{Escrow removes framing entirely.} No seller is ever suspended (by construction), no sanction is attributed to a rival in any setting, as Proposition~\ref{prop:def}(ii) predicts, and all three sellers survive in every seed. It has a cost: with all sellers learning, prices settle at 0.54--0.85 (mean 0.69), well above the Nash price of 0.30 and close to the unregulated control (0.63). Escrow takes away only the profit above Nash of the one audited seller, so it barely deters high prices. In our market this costs little total surplus ($\mathrm{SWL}=0.005$), because with almost no outside option higher prices mostly transfer surplus from consumers to sellers, but it means escrow alone no longer works as anti-gouging regulation.
+
 %% ===================================================================
 \section{Discussion and Limitations}
 \label{sec:discussion}
@@ -307,19 +347,20 @@ H1 & Mean rule exploited by a single learner in all seeds; median and cap never.
 H2 & Elimination happens even when one ban is not lethal, through repeated bans. & Not supported as stated \\
 H3 & Risk aversion and altruism sharply reduce framing; risk aversion $\alpha\ge1.5$ removes it entirely. An ethics penalty of up to $\mu=1$ has no effect. & Partly supported \\
 H4 & Exact DP baseline did not produce valid results. & Not tested \\
+New & EMA reference delays framing (learners find the 4-period attack); escrow removes it but weakens price discipline. & --- \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-Table~\ref{tab:scorecard} summarises the hypotheses. The central result is that a regulator whose benchmark is computed from the prices it judges gives every seller a lever over its rivals' treatment, and independent learners find that lever without being told about it. A median benchmark removes the lever for a lone undercutter, but only while enough sellers remain; a cap removes it entirely, yet any rule that stops auditing a thinned market invites a race to be the last firm standing.
+Table~\ref{tab:scorecard} summarises the hypotheses. The central result is that a regulator whose benchmark is computed from the prices it judges gives every seller a lever over its rivals' treatment, and independent learners find that lever without being told about it. A median benchmark removes the lever for a lone undercutter, but only while enough sellers remain; a cap removes it entirely, yet any rule that stops auditing a thinned market invites a race to be the last firm standing. Smoothing the benchmark over time only slows the attack down, and learners can wait. Replacing suspensions with escrowed fines takes away the reward for framing altogether, because a framed seller has no excess profit to lose; but on its own escrow is too weak to keep prices down.
 
-\paragraph{Limitations.} The market is synthetic and small ($N\le4$, 11 prices), with a reserve cap and episodic resets chosen to expose the mechanism, not calibrated to a platform. Observations are not Markov and learners are independent, so frozen policies are not equilibria \citep{busoniu2008}; framing levels also depend strongly on training length (Figure~\ref{fig:training}). Attribution uses a one-period Nash counterfactual, not a full trajectory replay. The cap-control runs use $10^7$ steps and may understate framing. The proposal planned at least 20 seeds per configuration and confidence intervals; we used 20 for the single-learner study and 10 elsewhere, and report standard errors without a multiplicity correction, so all comparisons are exploratory.
+\paragraph{Limitations.} The market is synthetic and small ($N\le4$, 11 prices), with a reserve cap and episodic resets chosen to expose the mechanism, not calibrated to a platform. Observations are not Markov and learners are independent, so frozen policies are not equilibria \citep{busoniu2008}; framing levels also depend strongly on training length (Figure~\ref{fig:training}). Attribution uses a one-period Nash counterfactual, not a full trajectory replay; under an EMA reference it undercounts framing, because the reference was moved in earlier periods (the patient attacker causes 2.00 bans per episode, of which only 1.2--1.4 are attributed). The cap-control runs use $10^7$ steps and may understate framing. The proposal planned at least 20 seeds per configuration and confidence intervals; we used 20 for the single-learner study and 10 elsewhere, and report standard errors without a multiplicity correction, so all comparisons are exploratory.
 
-\paragraph{Future work.} (i) Repair and validate the exact DP solver, so learned behaviour can be compared against the true best response (H4). (ii) Rerun the implemented extensions with the corrected learning dynamics: a slow-timescale learning regulator tested against a best-response attacker (Extension A), an out-of-distribution demand shock (Extension B), a DQN learner for larger $N$, and an evolutionary tournament between strategies. (iii) Test defences against learners, not just scripted attackers. Unit tests show that a reference built from an exponential moving average of past prices stops a scripted undercutter from causing any bans, and that replacing suspensions with escrowed fines prevents ban-induced bankruptcy; whether learners find ways around either is open. (iv) Rerun the robustness and cap-control studies at $3\times10^8$ steps or more, test mixed trait populations, and scale the ethics penalty to the size of the monopoly gain.
+\paragraph{Future work.} (i) Repair and validate the exact DP solver, so learned behaviour can be compared against the true best response (H4). (ii) Rerun the implemented extensions with the corrected learning dynamics: a slow-timescale learning regulator tested against a best-response attacker (Extension A), an out-of-distribution demand shock (Extension B), a DQN learner for larger $N$, and an evolutionary tournament between strategies. (iii) Combine escrow with a price cap or a stronger fine, so the rule both resists framing and still disciplines high prices, and attribute harm over multi-period windows. (iv) Rerun the robustness and cap-control studies at $3\times10^8$ steps or more, test mixed trait populations, and scale the ethics penalty to the size of the monopoly gain.
 
 %% ===================================================================
 \section{Conclusion}
-A relative-price watchdog can be turned against the sellers it is meant to discipline. A single Q-learner frames fixed rivals under a mean rule in every run, and fully learning markets discover framing too, increasingly so with training, under the mean rule far more than the median. A price cap is immune to framing but not to the incentive created by switching audits off in a thin market. Designers of automated market supervision should prefer references that a single seller cannot move, and should not let enforcement lapse as the market concentrates.
+A relative-price watchdog can be turned against the sellers it is meant to discipline. A single Q-learner frames fixed rivals under a mean rule in every run, and fully learning markets discover framing too, increasingly so with training, under the mean rule far more than the median. A price cap is immune to framing but not to the incentive created by switching audits off in a thin market. Smoothing the benchmark over time only delays the attack; replacing suspensions with fines on excess profit removes it, but needs a second instrument to keep prices down. Designers of automated market supervision should prefer references and penalties that a seller cannot turn against its rivals, and should not let enforcement lapse as the market concentrates.
 
 \paragraph{Code and reproducibility.} All code, result CSVs, and figure scripts are at \url{https://github.com/hemtilva/WeaponzingWatchdog}. Every table and figure here is produced by a script listed in the repository README.
 

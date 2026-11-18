@@ -237,6 +237,30 @@ Training length matters. Under the mean rule, attributed bankruptcies more than 
 
 This has a direct consequence for the other all-learning results. The robustness study and the cap controls were trained for 10M steps, so their framing levels should be read as underestimates of what longer-trained learners would do. The trait sweeps were rerun at 300M steps (Section 5.3). The direction of the mean–median comparison is the same at every training length we tested. Rerunning the trait sweeps at 300M steps changed their conclusions (Section 5.3).
 
+### 5.6 Defences against learners
+
+We tested two defences, both implemented in the native engine ([run_defences.py](experiments/run_defences.py), [patient_attacker.py](experiments/patient_attacker.py); outputs in [results/defences](results/defences/)):
+
+- **EMA reference.** Prices are judged against r_t = β·r_{t−1} + (1−β)·mean(p_t), so a one-period undercut moves the reference only a fraction 1−β as far.
+- **Escrow.** A flagged, audited seller is not suspended. Its profit above the Nash level for that period is removed instead.
+
+**What the algebra says.** If one seller holds L while the others stay at H, the EMA reference converges to the mean m = (L + (N−1)H)/N, so a rival is flagged after t* = ⌈ln((H/(1+δ) − m)/(H − m)) / ln β⌉ periods whenever the mean rule would flag it. With L = 0.15, H = 0.30, δ = 0.10, t* is 4, 16, and 79 periods for β = 0.80, 0.95, 0.99. At 0.15 the attacker still earns 0.07 per period, more than the fixed cost, so it can afford to wait. Under escrow, an honest seller at its Nash price that is undercut earns less than its Nash profit, so its penalty is zero: framing cannot hurt it.
+
+| Rule | Patient attacker: rival exits / episode | Single learner, 2M steps | Single learner, 300M steps | All learners, 300M: bankruptcies / episode | All learners: survivors | All learners: mean price |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Mean | 2.00 (0.00) | 2.00 (0.00) | 2.00 (0.00) | 2.08 (0.02) | 0.92 (0.02) | 1.44 |
+| Median | — | — | — | 1.72 (0.16) | 1.28 (0.16) | 1.04 |
+| EMA β = 0.80 | 2.00 (0.00) | 0.00 (0.00) | 2.00 (0.00) | 0.72 (0.29) | 2.28 (0.29) | 0.50 |
+| EMA β = 0.95 | 2.00 (0.00) | 0.00 (0.00) | 0.00 (0.00) | 1.00 (0.33) | 2.00 (0.33) | 0.63 |
+| EMA β = 0.99 | 2.00 (0.00) | 0.00 (0.00) | 0.00 (0.00) | — | — | — |
+| Mean + escrow | 0.00 (0.00) | 0.00 (0.00) | 0.00 (0.00) | 0.00 (0.00) | 3.00 (0.00) | 0.69 |
+
+*Table 6. Patient attacker: a scripted seller that holds 0.15 while audits run, against Nash rivals (5 seeds). Single learner: one Q-learner against two fixed Nash rivals (20 seeds); the column counts rivals bankrupted per episode. All learners: three Q-learners (10 seeds). Mean (standard error); δ = 0.10, lethal bans; Nash price 0.30.*
+
+- **EMA delays framing but does not prevent it.** The patient attacker bankrupts both rivals in every episode for every β. A single learner finds nothing after 2M steps, but after 300M steps it frames both rivals in all 20 seeds at β = 0.80 (a 4-period attack). At β ≥ 0.95 (16+ periods) no learner found it. With all sellers learning, EMA cuts bankruptcies from 2.08 to 0.72–1.00 per episode, but the outcome splits by seed: at β = 0.95, five seeds end with one firm and five with all three.
+- **Escrow removes framing.** No seller is suspended (by construction), no sanction is attributed to a rival, and all three firms survive in every seed. The cost is weak price discipline: with all sellers learning, prices settle at 0.54–0.85 (mean 0.69), well above Nash (0.30) and close to the unregulated control (0.63). Total surplus barely changes (SWL 0.005) because, with almost no outside option, higher prices mostly move surplus from consumers to sellers.
+- **Measurement caveat.** Under EMA the one-period Nash counterfactual undercounts framing, because the reference was moved in earlier periods. The patient attacker causes 2.00 bans per episode, of which only 1.2–1.4 are attributed. This table therefore counts bankruptcies directly.
+
 ## 6. Discussion and limitations
 
 The algebra and controlled single-learner simulation make a narrow but meaningful case: an endogenous mean benchmark can allow one seller's price to change whether fixed-price rivals are flagged. The median and cap baselines remove that particular unilateral channel in the two-price example with three active sellers. The median protection fails once only two sellers remain active, so the rule's design interacts with N_min. The all-learning controls show why that result must not be generalized to every bankruptcy, rule, or market setting. A rule can affect behavior and survival even when the counterfactual attribution metric reports no framing.
@@ -249,7 +273,7 @@ The main limitations are:
 4. **Comparability.** The single-learner comparison uses fixed Nash-price rivals, whereas the controls and trait study have all sellers learning. Results from these settings should not be treated as estimates of the same causal effect.
 5. **Statistical and provenance limits.** The study includes multiple exploratory sweeps. Figures from before the learning-dynamics fix (extensions, DQN, old phase diagrams) are kept in `plots/legacy/` and are not used as evidence. Tables report standard errors across seeds, but with 5–20 seeds per condition and no multiplicity correction, small differences should not be over-read. A small five-seed replication does not replace a preregistered study or broader sensitivity analysis.
 
-Useful next steps are rerunning the robustness grid and controls at 300M+ training steps, matched trajectory-level counterfactual replays, robustness to uncapped capital and alternative horizons, and a prospective experiment plan specifying primary outcomes, seed counts, and comparisons. A matched exact-DP versus learning study would help distinguish feasibility from learnability. The existing EMA, escrow, demand-shock, and DQN extensions are possible follow-on work; their historical figures are not used as evidence in this report.
+Useful next steps are combining escrow with a price cap or a stronger fine (so the rule resists framing and still disciplines high prices), attributing harm over multi-period windows, rerunning the robustness grid and controls at 300M+ training steps, matched trajectory-level counterfactual replays, robustness to uncapped capital and alternative horizons, and a prospective experiment plan specifying primary outcomes, seed counts, and comparisons. A matched exact-DP versus learning study would help distinguish feasibility from learnability. The existing EMA, escrow, demand-shock, and DQN extensions are possible follow-on work; their historical figures are not used as evidence in this report.
 
 ## 7. Conclusion
 
@@ -277,6 +301,10 @@ python experiments/check_training_length.py --steps 300000000
 python experiments/check_training_length.py --steps 1000000000
 python experiments/run_cap_controls.py
 python scripts/benchmark_backends.py
+python experiments/run_defences.py single
+python experiments/run_defences.py single --steps 300000000
+python experiments/run_defences.py all
+python experiments/patient_attacker.py
 python -m pytest -q --ignore=tests/test_dqn_agent.py
 ```
 

@@ -45,7 +45,11 @@ Step-level trace under a 0.60 price cap. With `N_min = 2` (audits stop once one 
 
 Each trait varied for all three learners, at 10M and 300M training steps (10 seeds per point). At 300M steps, risk aversion removes framing completely (zero attributed bankruptcies at α ≥ 1.5, all firms survive), and altruism cuts it from 1.10 to 0.09 per episode. An ethics penalty up to μ = 1 has no detectable effect. Short training (10M) understated the altruism effect.
 
-### 5. Four sellers
+### 5. Defences: EMA only delays framing; escrow removes it
+
+A time-smoothed (EMA) reference slows framing down but does not stop it. A scripted attacker that patiently holds 0.15 bankrupts both rivals under every EMA setting, and a single Q-learner trained for 300M steps finds the 4-period attack at β = 0.80 in all 20 seeds. Replacing suspensions with escrowed fines (profit above Nash is removed, nobody is suspended) eliminates framing everywhere, but prices then settle at about 0.69, well above Nash (0.30). Details: `FINAL_REPORT.md` Section 5.6, `results/defences/`.
+
+### 6. Four sellers
 
 With N = 4 and `N_min = 3` (300M steps, 10 seeds), the mean rule causes 0.55 attributed bankruptcies per episode against 0.18 for the median (`results/Krishs-MacBook-Air/all/study_n4long.csv`).
 
@@ -163,6 +167,7 @@ where $\mathbf{p}_t^{(i \to N)} = (p_{1,t}, \dots, p_{i-1,t}, p_i^N, p_{i+1,t}, 
 | **H1** Mean rule exploitable by one undercutter; median and cap not | **Supported, with a caveat.** A single learner frames rivals under the mean rule in all 20 seeds and never under median or cap. With all sellers learning, the mean rule is consistently more exploitable, but the median is not immune once two firms remain. | Figs. 1–2, `results/Krishs-MacBook-Air/all/study_single.csv`, `results/training_length/` |
 | **H2** Framing pays only when one ban is lethal | **Not supported as stated.** With a non-lethal buffer the learner still eliminates ~1.94 rivals per episode through repeated bans. | `study_single.csv` (non-lethal row) |
 | **H3** Framing falls with ethics, altruism, risk aversion | **Partly supported.** At 300M steps risk aversion (zero framing at α ≥ 1.5) and altruism (1.10 → 0.09) reduce framing; an ethics penalty up to μ = 1 has no effect. | Fig. 4, `results/traits_300M/` |
+| **New** Defences | **EMA delays, escrow removes.** EMA reference: learners find a 4-period attack at β = 0.80; escrow: no framing, but prices ≈ 0.69 vs Nash 0.30. | `results/defences/` |
 | **H4** Learners find framing only where exact DP says it is optimal | **Not tested.** The exact DP solver returns negative exploitability gains, which is impossible for a best response, so it is not used. | `src/benchmarks/exact_dp.py` |
 
 ## Status of the Original Roadmap
@@ -174,7 +179,8 @@ where $\mathbf{p}_t^{(i \to N)} = (p_{1,t}, \dots, p_{i-1,t}, p_i^N, p_{i+1,t}, 
 | Independent tabular Q-learning with traits | Done (`src/agents/`). |
 | Rule comparison, robustness, traits, N = 4 | Done (`experiments/run_study.py`, `experiments/check_training_length.py`). |
 | Phase diagram over K0/Φ × T_ban (`run_study.py h2`) | Run at 10M steps only, which Section 5.5 of `FINAL_REPORT.md` shows is too short. Not used as evidence. |
-| Extension A (learning regulator), Extension B (demand shock), DQN, EMA defence, tournament | Implemented, but last run before the fix to the learning dynamics. Their figures are in `plots/legacy/` and are **not** current results. |
+| EMA and escrow defences | Done against learners (`experiments/run_defences.py`). |
+| Extension A (learning regulator), Extension B (demand shock), DQN, tournament | Implemented, but last run before the fix to the learning dynamics. Their figures are in `plots/legacy/` and are **not** current results. |
 
 ---
 
@@ -314,6 +320,7 @@ Every experiment should start from a market where weaponization is possible at a
 | Fig. 3 (cap traces) | `python experiments/trace_cap_control.py --n-min 2` and `--n-min 1` | `results/cap_trace/` |
 | Cap controls (paper Section 5.4) | `python experiments/run_cap_controls.py` | `results/controls_rerun/cap_controls.csv` (matches `results/athena/controls/` exactly) |
 | Fig. 4 (traits) | `python experiments/run_study.py h3` (10M) and `--steps 300000000` | `results/Krishs-MacBook-Air/all/study_h3.csv`, `results/traits_300M/` |
+| Defences table | `python experiments/run_defences.py single` (2M, and `--steps 300000000`), `run_defences.py all`, `python experiments/patient_attacker.py` | `results/defences/` |
 | All figures | `python scripts/make_paper_figures.py` | `paper/figures/` |
 | C++ vs Python speed-up (~930×) | `python scripts/benchmark_backends.py` | printed |
 | Metric validation (scripted attacker) | `pytest tests/test_scripted_attacker.py tests/test_framing_mechanics.py` | test output |
