@@ -11,7 +11,7 @@
 
 Price-monitoring systems may classify a seller as unusually expensive by comparing its price with those of other sellers. This project investigates whether a learning seller can manipulate such a relative benchmark: by lowering its own price, it may cause competing sellers to be flagged and suspended. We model sellers as agents in a repeated differentiated-product market with random audits, fixed operating costs, capital reserves, and bankruptcy. We derive a condition under which a mean-based rule flags high-price rivals and compare it with a median-based rule and an absolute price cap. We then evaluate independent tabular Q-learning in controlled simulated markets.
 
-In a saved 20-seed experiment with one learner and two fixed Nash-price rivals, the mean-rule condition with a short initial capital buffer produced an average of 2.000 rival bankruptcies per episode attributed by the simulator to induced bans; the median and cap conditions produced none. A separate five-seed rerun showed the same broad pattern. However, the larger-buffer mean-rule condition also produced an average of 1.938 attributed rival bankruptcies, contradicting a simple claim that a single ban must be lethal for elimination to occur. Further all-learning controls show substantial bankruptcy under a price cap even when no bans are attributed to peer-price manipulation. Step-level traces show the mechanism: sellers price above the cap, two are banned into bankruptcy, and the last one prices freely once audits stop. Trait-sweep results show no monotonic effect of the ethics weight, while higher risk aversion is associated with sharply less framing and more surviving firms. These are simulation findings, not evidence of real-world misconduct or proof of agent intent. The key contribution is a testable mechanism and an evaluation that distinguishes model-defined framing from other market failures.
+In a saved 20-seed experiment with one learner and two fixed Nash-price rivals, the mean-rule condition with a short initial capital buffer produced an average of 2.000 rival bankruptcies per episode attributed by the simulator to induced bans; the median and cap conditions produced none. A separate five-seed rerun showed the same broad pattern. However, the larger-buffer mean-rule condition also produced an average of 1.938 attributed rival bankruptcies, contradicting a simple claim that a single ban must be lethal for elimination to occur. When all three sellers learn, framing also emerges, and it grows with training: under the mean rule, attributed bankruptcies rise from 0.51 per episode at 10 million steps to 1.34 at 1 billion, against 0.56 under the median rule. A four-seller market shows the same ranking. Further all-learning controls show substantial bankruptcy under a price cap even when no bans are attributed to peer-price manipulation. Step-level traces show the mechanism: sellers price above the cap, two are banned into bankruptcy, and the last one prices freely once audits stop. With adequate training (300M steps), higher risk aversion and altruism sharply reduce framing, and sellers with risk aversion α ≥ 1.5 never frame at all, while an ethics penalty has no detectable effect. These are simulation findings, not evidence of real-world misconduct or proof of agent intent. The key contribution is a testable mechanism and an evaluation that distinguishes model-defined framing from other market failures.
 
 ## 1. Introduction and research question
 
@@ -107,13 +107,25 @@ The baseline learning reward uses normalized operating profit, not profit after 
 
 Seed-level runs are the units summarized below. Episodes within one frozen-policy run share a trained policy and are not independent training replications. W is reported as a mean of per-seed rates, not as a pooled ratio over all bans.
 
+### 3.3 Validating the measures on a scripted attacker
+
+Before applying W and the bankruptcy attribution to learners, we checked them against a scripted attacker whose behavior is known. The attacker prices at zero whenever at least N_min firms are active and at the monopoly price otherwise. Its rivals price at Nash. The test suite ([test_scripted_attacker.py](tests/test_scripted_attacker.py), [test_framing_mechanics.py](tests/test_framing_mechanics.py)) checks that:
+
+- under the mean rule, the attacker causes bans, and W is at least 0.80;
+- under the median rule (N = 3 and N = 4) and under a price cap, the same attacker causes no bans, and W is 0;
+- every attributed bankruptcy is credited to the attacker and none to the honest rivals;
+- with a lethal buffer, every attributed ban ends in bankruptcy, while with a non-lethal buffer fewer than a quarter do;
+- a market of honest Nash-pricing firms produces no bans and no bankruptcies.
+
+All of these tests pass. The measures therefore detect framing when it is present by construction and report none when it is absent.
+
 ## 4. Experimental design
 
 The main study uses N = 3, 11 prices uniformly spaced from 0 to 1.5, Q = 1, quality a_i = 2, a_0 = 0, marginal costs 0, σ = 0.25, Φ = 0.05, audit budget B = 1, and N_min = 2. The discrete Nash benchmark in this setting is p = 0.30 with operating profit approximately 0.100 per firm and period. The benchmark profit exceeds fixed cost, although other prices or suspensions can still drain capital.
 
 The saved single-learner experiment uses 20 seeds per condition, 2 million training steps and 50,000 frozen-policy evaluation steps per seed, with 100 evaluation episodes. The lethal configuration has K_0 = 0.15 and T_ban = 4; the initially non-lethal configuration has K_0 = 0.50 with the same ban duration. A single full suspension drains 0.20, excluding any other intervening cash flows. “Non-lethal” therefore refers only to one ban starting from the full initial buffer, not an entire episode with repeated bans.
 
-We additionally reran the same five conditions with five new seeds, 9020–9024. This rerun was chosen after inspection of the existing results and is an **exploratory replication**, not a preregistered confirmatory test. The all-learning controls use ten seeds per condition and 10 million training steps. The trait sweep also uses ten seeds per value. Since many configurations were explored and no preregistered comparison or multiplicity correction is documented, the findings below are descriptive; we do not use significance thresholds to claim confirmation.
+We additionally reran the same five conditions with five new seeds, 9020–9024. This rerun was chosen after inspection of the existing results and is an **exploratory replication**, not a preregistered confirmatory test. The all-learning controls and robustness study use ten seeds per condition and 10 million training steps; the trait sweep was run at both 10 million and 300 million steps. The four-seller study uses 300 million steps, and a training-length check (Section 5.5) repeats the main all-learning comparison at up to 1 billion steps. Since many configurations were explored and no preregistered comparison or multiplicity correction is documented, the findings below are descriptive; we do not use significance thresholds to claim confirmation.
 
 ## 5. Results
 
@@ -159,29 +171,69 @@ To see the sequence directly, we retrained the same ten control seeds and record
 
 Which firm survives differs across seeds and episodes, so this is not a fixed role assignment. The pattern is a gamble: pricing above the cap risks a lethal audit, but the firm that avoids an audit inherits an unregulated monopoly. With N_min = 1, the traces show no above-cap prices in any of the 20 episodes. Prices sit at or just below the cap (about 0.60), and no firm is banned or bankrupt. Without an effective cap the saved mean price is 0.63, also with no bans. The traces were produced on a different machine from the saved controls, but they reproduce the saved outcome of two bankruptcies per episode. The control therefore shows that the point at which regulation switches off creates an incentive of its own, separate from peer-price framing.
 
-In the all-learning robustness study, mean-rule attributed bankruptcies were higher than median-rule values for each recorded parameter setting, but substantial other bankruptcies appeared under both rules; for example, at δ = 0.10 the respective means (standard errors) were 0.513 (0.121) and 0.253 (0.070) attributed bankruptcies and 1.490 (0.120) and 1.748 (0.070) other bankruptcies per episode. With ten seeds, that particular difference is about two standard errors. The non-zero median values are consistent with Section 2.4: once one firm exits, the two remaining active firms face a median equal to their mean, so framing becomes possible under the median rule as well. These comparisons are exploratory and do not establish a universal ranking.
+In the all-learning robustness study, mean-rule attributed bankruptcies were higher than median-rule values for each recorded parameter setting, but substantial other bankruptcies appeared under both rules; for example, at δ = 0.10 the respective means (standard errors) were 0.513 (0.121) and 0.253 (0.070) attributed bankruptcies and 1.490 (0.120) and 1.748 (0.070) other bankruptcies per episode. With ten seeds, that particular difference is about two standard errors at this training length. Section 5.5 shows that it widens considerably with longer training. The non-zero median values are consistent with Section 2.4: once one firm exits, the two remaining active firms face a median equal to their mean, so framing becomes possible under the median rule as well. These comparisons are exploratory and do not establish a universal ranking.
 
 ### 5.3 Behavioral traits
 
-The saved all-learning ethics sweep gives mean W values of 0.166, 0.189, 0.221, 0.170, 0.182, and 0.175 for ethics weights 0, 0.01, 0.03, 0.1, 0.3, and 1 respectively. The standard errors of these means are 0.035–0.063, larger than any difference between them. The mean is not monotonically decreasing, and the ethics penalty shows no detectable effect on framing in this sweep.
+We varied one trait at a time, giving all three learners the same value, under the mean rule with δ = 0.10. Each configuration was trained for 10M steps ([study_h3.csv](results/Krishs-MacBook-Air/all/study_h3.csv)) and again for 300M steps ([study_h3_300M.csv](results/traits_300M/study_h3_300M.csv)), because Section 5.5 shows 10M steps is not enough for framing levels to settle. The 300M results are the ones to rely on, and they differ from the 10M results in important ways.
 
-Risk aversion has a much stronger association with framing:
+| Trait value | Attributed bankruptcies / episode, 10M | Attributed bankruptcies / episode, 300M | Survivors, 300M |
+| --- | ---: | ---: | ---: |
+| Baseline (all traits 0) | 0.479 (0.077) | 1.101 (0.127) | 0.95 (0.06) |
+| Ethics μ = 0.1 | 0.448 (0.098) | 1.091 (0.126) | 0.98 (0.01) |
+| Ethics μ = 1 | 0.514 (0.110) | 1.123 (0.129) | 1.09 (0.09) |
+| Altruism λ = 0.25 | 0.249 (0.046) | 0.958 (0.180) | 1.33 (0.23) |
+| Altruism λ = 0.5 | 0.263 (0.110) | 0.549 (0.123) | 1.85 (0.20) |
+| Altruism λ = 1 | 0.155 (0.047) | 0.090 (0.078) | 2.72 (0.16) |
+| Risk aversion α = 0.5 | 0.461 (0.083) | 1.130 (0.139) | 1.16 (0.21) |
+| Risk aversion α = 1 | 0.261 (0.091) | 0.226 (0.073) | 2.64 (0.11) |
+| Risk aversion α = 1.5 / 2 | 0.205 / 0.065 | 0.000 (0.000) | 3.00 (0.00) |
 
-| CRRA risk aversion α | Mean W | Fresh bans / episode | Attributed bankruptcies / episode | Survivors |
-| ---: | ---: | ---: | ---: | ---: |
-| 0.0 | 0.166 (0.035) | 2.00 (0.00) | 0.479 (0.077) | 1.00 (0.00) |
-| 0.5 | 0.169 (0.042) | 2.00 (0.00) | 0.461 (0.083) | 0.99 (0.01) |
-| 1.0 | 0.088 (0.020) | 1.60 (0.27) | 0.261 (0.091) | 1.40 (0.27) |
-| 1.5 | 0.069 (0.034) | 1.19 (0.32) | 0.205 (0.095) | 1.81 (0.32) |
-| 2.0 | 0.015 (0.013) | 0.40 (0.26) | 0.065 (0.061) | 2.61 (0.26) |
+*Table 3. Means (standard errors) across ten seeds per value. All three sellers learn. Every value in each sweep is in the CSVs; the table shows a selection.*
 
-*Table 3. Means (standard errors) across ten seeds per value from [study_h3.csv](results/Krishs-MacBook-Air/all/study_h3.csv). All three sellers learn under the mean rule with δ = 0.10.*
+- **Risk aversion** has the strongest effect. At 300M steps, framing falls to zero at α ≥ 1.5: no seller is ever banned and all three survive in every seed. The Spearman correlation between α and attributed bankruptcies is −0.84. Framing is a gamble on a lethal audit, and concave utility makes that gamble unattractive.
+- **Altruism** also sharply reduces framing at 300M steps, from 1.10 to 0.09 attributed bankruptcies, with survivors rising from 0.95 to 2.72 (Spearman −0.61). At 10M steps this effect was weak and non-monotonic, so the shorter study understated it.
+- **The ethics penalty** has no detectable effect at either training length. At 300M steps attributed bankruptcies stay between 1.09 and 1.30 for every μ from 0 to 1 (Spearman 0.02). A likely reason is scale. At μ = 1, the penalty for one framed ban equals about ten periods of Nash profit. Eliminating both rivals raises the learner's per-period profit from 0.10 to about 1.3 over a discounted horizon of 1/(1−γ) = 20 periods, a gain of roughly 24 reward units against a penalty of at most 2.
 
-Apart from a negligible rise from α = 0 to 0.5, W, bans, and attributed bankruptcies all fall as risk aversion increases, and mean survivors rise from about one firm to more than two and a half. The large standard errors at α ≥ 1 for bans and survivors reflect a split across seeds: some seeds stop framing entirely while others do not. A plausible reading is that concave utility makes the lethal-ban gamble described in Section 5.2 less attractive, but we have not tested that mechanism directly. Altruism means also fall overall (W from 0.166 to 0.078) but not monotonically. These are exploratory results from ten seeds per value without a multiplicity correction.
+These are exploratory results from ten seeds per value without a multiplicity correction.
 
-![Ethics sweep by seed](plots/final_report/ethics.png)
+![Trait sweeps at 10M and 300M training steps](paper/figures/traits.png)
 
-*Figure 3. Individual seed-level W values and their group means; ten training seeds per ethics value. The same numeric seeds are used across settings, but this does not by itself establish independent or paired trajectories after policies diverge.*
+*Figure 3. Attributed bankruptcies per episode as each trait varies, at 10M and 300M training steps. Ten seeds per point; error bars are one standard error. Generated by `scripts/make_paper_figures.py`.*
+
+### 5.4 Four sellers
+
+With N = 3, the market can shrink to two active firms after one exit, and Section 2.4 shows that the median rule then behaves exactly like the mean rule. With N = 4 and N_min = 3, the watchdog only operates while there are three or four active sellers, so the median always compares a seller with at least two others. We ran this setting, and N = 4 with N_min = 2 for comparison, with all four sellers learning, ten seeds per condition, and 300 million training steps each.
+
+| Rule | N_min | Mean W | Attributed bankruptcies / episode | Other bankruptcies / episode | Survivors |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Mean, δ = 0.10 | 3 | 0.157 (0.035) | 0.548 (0.086) | 1.453 (0.086) | 2.00 (0.00) |
+| Median, δ = 0.10 | 3 | 0.071 (0.015) | 0.183 (0.038) | 1.824 (0.038) | 1.99 (0.00) |
+| Mean, δ = 0.10 | 2 | 0.209 (0.034) | 0.922 (0.113) | 2.081 (0.113) | 1.00 (0.00) |
+| Median, δ = 0.10 | 2 | 0.139 (0.016) | 0.478 (0.074) | 2.524 (0.074) | 1.00 (0.00) |
+
+*Table 4. Means (standard errors) across ten seeds per condition from [study_n4long.csv](results/Krishs-MacBook-Air/all/study_n4long.csv).*
+
+The mean rule again produces more attributed bankruptcies than the median rule: about three times as many with N_min = 3 (0.548 vs 0.183, a gap of about four standard errors) and about twice as many with N_min = 2. The median rule's attributed bankruptcies are lower with N_min = 3, consistent with its protection being stronger when it always compares at least three sellers. They are not zero. In an all-learning market prices are spread across several values rather than two, and a seller close to the median can move it. In every condition, the market still ends with exactly N_min − 1 survivors, the point at which audits stop. Most bankruptcies are not attributed to framing, so the "race to be the unregulated survivor" seen in the cap control (Section 5.2) appears to operate here as well.
+
+### 5.5 Is the all-learning market trained long enough?
+
+With N = 3 and 11 prices, each learner's observation space has 11³ × 2³ × 3 = 31,944 states. One might worry that framing is rare in the all-learning experiments only because the learners have not trained long enough to find it. The trainer records the fraction of states each learner visits at least once during training. In the 10M-step all-learning runs this is about 15%. In the single-learner runs it is only 0.1–0.4%, because fixed rivals keep most price combinations unreachable, yet the single learner finds framing within 2M steps.
+
+To test the all-learning case directly, we retrained the δ = 0.10 mean and median conditions from the robustness study with the same ten seeds at 100M, 300M, and 1B training steps ([check_training_length.py](experiments/check_training_length.py); outputs in [results/training_length](results/training_length/)).
+
+| Training steps | State coverage | Mean rule: W | Mean rule: attributed bankruptcies | Median rule: W | Median rule: attributed bankruptcies | Median rule: survivors |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 10M | 0.15 | 0.231 (0.061) | 0.513 (0.121) | 0.129 (0.037) | 0.253 (0.070) | 1.00 (0.00) |
+| 100M | 0.22 | 0.450 (0.041) | 0.998 (0.071) | 0.230 (0.042) | 0.428 (0.081) | 1.37 (0.27) |
+| 300M | 0.23 | 0.625 (0.064) | 1.268 (0.100) | 0.505 (0.040) | 0.753 (0.105) | 1.28 (0.16) |
+| 1B | 0.23 | 0.720 (0.068) | 1.339 (0.119) | 0.438 (0.091) | 0.559 (0.116) | 1.53 (0.21) |
+
+*Table 5. Means (standard errors) across ten seeds; δ = 0.10, N = 3, N_min = 2, all sellers learning. The 10M row is from the robustness study.*
+
+Training length matters. Under the mean rule, attributed bankruptcies more than double between 10M and 300M steps and then level off: the change from 300M to 1B is smaller than one standard error. Under the median rule, the values rise and then fluctuate between about 0.4 and 0.75, and more firms survive with longer training. The visited state set stops growing after about 100M steps, so the later changes come from learners refining their values in states they already visit, not from discovering new ones. The difference between the rules becomes clearer with training: at 1B steps the mean rule produces 1.34 attributed bankruptcies against 0.56 for the median, a gap of about 4.7 standard errors, compared with about two standard errors at 10M.
+
+This has a direct consequence for the other all-learning results. The robustness study and the cap controls were trained for 10M steps, so their framing levels should be read as underestimates of what longer-trained learners would do. The trait sweeps were rerun at 300M steps (Section 5.3). The direction of the mean–median comparison is the same at every training length we tested. Rerunning the trait sweeps at 300M steps changed their conclusions (Section 5.3).
 
 ## 6. Discussion and limitations
 
@@ -190,16 +242,16 @@ The algebra and controlled single-learner simulation make a narrow but meaningfu
 The main limitations are:
 
 1. **Synthetic market and finite horizon.** Demand, identical products, price grid, overhead, reserve cap, and episode resets are modelling choices. Actual platforms may differ in enforcement, financing, demand, and seller behavior.
-2. **Partial observation and learning dynamics.** Independent Q-learners see compressed observations and face changing opponents. A frozen greedy policy after a fixed training budget is not proof of equilibrium or optimality.
+2. **Partial observation and learning dynamics.** Independent Q-learners see compressed observations and face changing opponents. A frozen greedy policy after a fixed training budget is not proof of equilibrium or optimality. Section 5.5 shows that framing levels in the all-learning market are still changing at 10M steps and settle only after a few hundred million steps. The robustness and control results were measured at 10M steps.
 3. **Attribution.** Nash-price flag counterfactuals are useful diagnostics, but the bankruptcy proxy does not replay the market without the intervention. Joint attribution to one seller is a bookkeeping convention, and W is undefined if no bans occur.
 4. **Comparability.** The single-learner comparison uses fixed Nash-price rivals, whereas the controls and trait study have all sellers learning. Results from these settings should not be treated as estimates of the same causal effect.
 5. **Statistical and provenance limits.** The study includes multiple exploratory sweeps. The saved control driver was ad hoc, and some legacy figures lack underlying checked-in data. Tables report standard errors across seeds, but with 5–20 seeds per condition and no multiplicity correction, small differences should not be over-read. A small five-seed replication does not replace a preregistered study or broader sensitivity analysis.
 
-Useful next steps are a committed driver for every control, matched trajectory-level counterfactual replays, robustness to uncapped capital and alternative horizons, and a prospective experiment plan specifying primary outcomes, seed counts, and comparisons. A matched exact-DP versus learning study would help distinguish feasibility from learnability. The existing EMA, escrow, demand-shock, and DQN extensions are possible follow-on work; their historical figures are not used as evidence in this report.
+Useful next steps are rerunning the robustness grid and controls at 300M+ training steps, a committed driver for every control, matched trajectory-level counterfactual replays, robustness to uncapped capital and alternative horizons, and a prospective experiment plan specifying primary outcomes, seed counts, and comparisons. A matched exact-DP versus learning study would help distinguish feasibility from learnability. The existing EMA, escrow, demand-shock, and DQN extensions are possible follow-on work; their historical figures are not used as evidence in this report.
 
 ## 7. Conclusion
 
-This project formulated and implemented a multi-agent pricing market with a regulatory watchdog. A simple derivation identifies when undercutting can make high-price sellers violate a mean-based rule. Simulations show the mechanism under a specific one-learner, fixed-rival configuration, including when one ban alone is insufficient to exhaust the initial buffer. Other controls show that bankruptcies can arise without the simulator attributing them to framing. When regulation switches off below N_min, sellers have a reason to accept lethal bans in order to become the sole unregulated survivor. The saved trait results do not support a monotonic ethics effect, but they do show framing falling as risk aversion rises. The study illustrates both a potential weakness of peer-dependent regulation and the importance of separating a precise mechanism from broader claims about welfare, intent, or real markets.
+This project formulated and implemented a multi-agent pricing market with a regulatory watchdog. A simple derivation identifies when undercutting can make high-price sellers violate a mean-based rule. Simulations show the mechanism under a specific one-learner, fixed-rival configuration, including when one ban alone is insufficient to exhaust the initial buffer. When all sellers learn, framing emerges more strongly with longer training, and the mean rule permits clearly more of it than the median rule with three and with four sellers. The harm measures were first validated on a scripted attacker. Other controls show that bankruptcies can arise without the simulator attributing them to framing. When regulation switches off below N_min, sellers have a reason to accept lethal bans in order to become the sole unregulated survivor. With 300M training steps, framing falls to zero as risk aversion rises and falls sharply with altruism, while the ethics penalty has no detectable effect. The study illustrates both a potential weakness of peer-dependent regulation and the importance of separating a precise mechanism from broader claims about welfare, intent, or real markets.
 
 ## References
 
@@ -218,6 +270,9 @@ python scripts/plot_report_results.py
 python experiments/replicate_report.py
 python experiments/trace_cap_control.py --n-min 2
 python experiments/trace_cap_control.py --n-min 1
+python experiments/check_training_length.py --steps 100000000
+python experiments/check_training_length.py --steps 300000000
+python experiments/check_training_length.py --steps 1000000000
 python -m pytest -q --ignore=tests/test_dqn_agent.py
 ```
 
