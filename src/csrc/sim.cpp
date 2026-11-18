@@ -55,6 +55,7 @@ struct SimParams {
     int32_t total_steps, warmup_steps, episode_length, eval_window;
     int32_t audit_budget, T_ban, freeze, has_cap;
     int32_t min_active;                       // N_min: audits only while >= this many active
+    int32_t legacy_reset;                     // 1: end episode when <= 1 active (legacy); 0: when none solvent
     double outside, sigma, Q, fixed_cost, K0, cap;
     double rule_param, ema_beta;
     double lr, gamma, eps_min, eps_decay, reward_eps;
@@ -438,17 +439,19 @@ SIM_API int32_t run_simulation_c(const SimParams* params, SimOutput* out) {
         }
 
         // Transition
-        int active_next = 0;
+        int active_next = 0, solvent_next = 0;
         for (int i = 0; i < N; ++i) {
             capital[i] = next_capital[i];
             timers[i] = next_timers[i];
             if (timers[i] == 0) ban_inducer[i] = -1;
             lag_idx[i] = act_idx[i];
             active_next += (timers[i] == 0 && capital[i] > 0.0) ? 1 : 0;
+            solvent_next += capital[i] > 0.0 ? 1 : 0;
         }
         ++episode_step;
 
-        if (episode_step >= P.episode_length || active_next <= 1) {
+        const bool early_end = P.legacy_reset ? (active_next <= 1) : (solvent_next == 0);
+        if (episode_step >= P.episode_length || early_end) {
             for (int i = 0; i < N; ++i)
                 inactive[i] = (timers[i] > 0 || capital[i] <= 0.0) ? 1 : 0;
             for (int i = 0; i < N; ++i)

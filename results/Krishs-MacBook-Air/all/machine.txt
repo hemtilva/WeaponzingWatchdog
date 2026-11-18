@@ -1,0 +1,10 @@
+study:    all (quick=0)
+commit:   2457a32
+branch:   fix/learnable-framing
+machine:  Krishs-MacBook-Air
+started:  2026-11-11 18:21:20
+finished: 2026-11-11 18:31:22
+python:   Python 3.11.15
+os:       Darwin 25.6.0 arm64
+cpu:      Apple M5
+cores:    10

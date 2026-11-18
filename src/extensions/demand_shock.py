@@ -167,8 +167,11 @@ class DemandShockEngine:
             episode_step += 1
 
             # Episode reset condition
-            active_next = np.sum([1 if (ban_timers[i] == 0 and capital[i] > 0.0) else 0 for i in range(N)])
-            if episode_step >= base_sim_config.episode_length or active_next <= 1:
+            if base_sim_config.legacy_reset:
+                early_end = np.sum((ban_timers == 0) & (capital > 0.0)) <= 1
+            else:
+                early_end = not np.any(capital > 0.0)
+            if episode_step >= base_sim_config.episode_length or early_end:
                 capital = np.full(N, m_cfg.initial_capital, dtype=np.float64)
                 ban_timers = np.zeros(N, dtype=np.int32)
                 lagged_prices = trainer.nash_prices.copy()

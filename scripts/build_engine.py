@@ -53,7 +53,11 @@ def openmp_flags(system: str):
 
 
 def gnu_command(compiler_path, compiler_type, system, sources, out_file, use_openmp):
-    cmd = [compiler_path, "-std=c++17", "-O3", "-shared", "-march=native"]
+    cmd = [compiler_path, "-std=c++17", "-O3", "-shared"]
+    if system != "Darwin":
+        # Apple clang on Apple Silicon may reject -march=native; its default
+        # target is already tuned for the host.
+        cmd.append("-march=native")
     if use_openmp:
         cmd.extend(use_openmp)
     if system == "Windows" and compiler_type == "gcc":

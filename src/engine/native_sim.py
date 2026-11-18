@@ -21,7 +21,7 @@ class NativeSimParams(ctypes.Structure):
         ("episode_length", ctypes.c_int32), ("eval_window", ctypes.c_int32),
         ("audit_budget", ctypes.c_int32), ("T_ban", ctypes.c_int32),
         ("freeze", ctypes.c_int32), ("has_cap", ctypes.c_int32),
-        ("min_active", ctypes.c_int32),
+        ("min_active", ctypes.c_int32), ("legacy_reset", ctypes.c_int32),
         ("outside", ctypes.c_double), ("sigma", ctypes.c_double), ("Q", ctypes.c_double),
         ("fixed_cost", ctypes.c_double), ("K0", ctypes.c_double), ("cap", ctypes.c_double),
         ("rule_param", ctypes.c_double), ("ema_beta", ctypes.c_double),
@@ -81,7 +81,7 @@ def run_native(arrays: Dict[str, np.ndarray], scalars: Dict[str, Any]) -> Dict[s
     p = NativeSimParams(
         **{k: scalars[k] for k in (
             "N", "M", "rule_type", "penalty_mode", "total_steps", "warmup_steps", "episode_length",
-            "eval_window", "audit_budget", "T_ban", "freeze", "has_cap", "min_active", "outside", "sigma", "Q",
+            "eval_window", "audit_budget", "T_ban", "freeze", "has_cap", "min_active", "legacy_reset", "outside", "sigma", "Q",
             "fixed_cost", "K0", "cap", "rule_param", "ema_beta", "lr", "gamma", "eps_min",
             "eps_decay", "reward_eps", "seed",
         )},

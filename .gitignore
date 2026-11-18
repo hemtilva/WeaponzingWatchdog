@@ -38,3 +38,4 @@ data/
 
 # Smoke-test outputs
 plots/*_quick.png
+plots/*_legacyreset.png
