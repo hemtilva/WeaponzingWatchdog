@@ -82,7 +82,7 @@ A banned firm cannot generate sales ($\pi_i = 0$) but remains liable for fixed c
 
 ## Regulatory Rules & Analytical Exploitability
 
-At the conclusion of period $t$, the regulator selects an audit sample $\text{Aud}_t \subseteq \mathcal{N}^{\text{act}}_t$ of budget size $|\text{Aud}_t| = B$ uniformly at random. If active participants $N_{\text{act},t} \ge N_{\min} = 3$, flags $F_{i,t} \in \{0, 1\}$ are evaluated according to one of the following static rules:
+At the conclusion of period $t$, the regulator selects an audit sample $\text{Aud}_t \subseteq \mathcal{N}^{\text{act}}_t$ of budget size $|\text{Aud}_t| = B$ uniformly at random. Audits happen only while $N_{\text{act},t} \ge N_{\min}$ (default $N_{\min} = 2$; the proposal used 3, but with $N = 3$ that switches the watchdog off after the first exit). Flags $F_{i,t} \in \{0, 1\}$ are evaluated according to one of the following static rules:
 
 1. **Mean-Ratio Rule:**
    $$r_t = \frac{1}{N_{\text{act},t}} \sum_{j \in \mathcal{N}^{\text{act}}_t} p_{j,t}, \qquad F_{i,t} = \mathbb{I}(p_{i,t} > (1 + \delta) r_t)$$
@@ -101,7 +101,7 @@ Suppose $k$ active firms post price $L$, while the remaining $N - k$ active firm
 * **Mean-Ratio Rule:** High-priced firms are flagged if and only if $k > \delta(N - k)$ and:
   $$\frac{H}{L} > \frac{(1+\delta)k}{k - \delta(N - k)}$$
   For a single undercutter ($k = 1$), this reduces to $\delta < \frac{1}{N-1}$ and $\frac{H}{L} > \frac{1+\delta}{1 - \delta(N-1)}$. A solitary actor can manipulate the mean benchmark whenever the threshold $\delta$ is sufficiently tight.
-* **Median-Ratio Rule:** If $k < N/2$, the median price remains $H$. Thus, no high-priced firm can be flagged by unilateral undercutting; weaponization requires a collusive bloc of at least $\lceil N/2 \rceil$ agents.
+* **Median-Ratio Rule:** If $k < N/2$, the median price remains $H$. Thus, no high-priced firm can be flagged by unilateral undercutting; weaponization requires a collusive bloc of at least $\lceil N/2 \rceil$ agents. **Caveat:** the median of an even count is the average of the two middle prices, so with exactly two active firms the median equals the mean and the median rule is as exploitable as the mean rule. With $N = 3$ and $N_{\min} = 2$ this applies after the first exit.
 * **Price Cap:** Absolute caps do not depend on peer prices and cannot be manipulated via undercutting.
 * **Z-Score Rule:** The standardized score for high-priced firms evaluates to $Z = \sqrt{k / (N - k)}$, independent of $L$. Crashing prices toward marginal cost yields no leverage over the metric beyond an infinitesimal undercut.
 
@@ -116,7 +116,9 @@ Each agent is characterized by an intrinsic, private trait vector $\boldsymbol{\
 
 ### Trait-Adjusted Reward Formulation
 Per-period agent reward is normalized by market volume $Q$:
-$$R_i = U_{\alpha_i}\left(\frac{\pi_i(\mathbf{p}_t)}{Q} + \varepsilon\right) + \lambda_i W_{\text{ext},i}(\mathbf{p}_t) - \mu_i C_{\text{harm}}(i, t)$$
+$$R_i = U_{\alpha_i}\left(\frac{\pi_i(\mathbf{p}_t)}{Q} + \varepsilon\right) - U_{\alpha_i}(\varepsilon) + \lambda_i W_{\text{ext},i}(\mathbf{p}_t) - \mu_i C_{\text{harm}}(i, t)$$
+
+The $-U_{\alpha_i}(\varepsilon)$ anchor makes a zero-profit period (banned or bankrupt) worth exactly zero, so leaving the market is never more attractive than operating. $\varepsilon = 0.01$.
 
 Where:
 - Utility function:
@@ -154,36 +156,25 @@ where $\mathbf{p}_t^{(i \to N)} = (p_{1,t}, \dots, p_{i-1,t}, p_i^N, p_{i+1,t}, 
 
 ---
 
-## Core Hypotheses
+## Hypotheses and Outcomes
 
-- **H1 (Rule Vulnerability):** Mean-ratio rules can be weaponized by a single undercutter; median-ratio rules require a multi-agent coalition; price caps cannot be manipulated by relative pricing. Predicted weaponization ranking: $\text{mean} > \text{median} \approx \text{cap}$.
-- **H2 (Capital and Ban Duration):** Framing is profitable only when the ban duration is long enough relative to victim capital reserves ($T_{\text{ban}} \ge K_0 / \Phi$) to induce permanent bankruptcy.
-- **H3 (Trait Modulation):** Weaponization decreases monotonically with increasing ethics $\mu$, altruism $\lambda$, and risk aversion $\alpha$.
-- **H4 (Learnability Gap):** Decentralized tabular Q-learners will discover predatory framing only on a subset of the parameter space where exact dynamic programming confirms it is optimal.
+| Hypothesis (from the proposal) | Outcome | Evidence |
+| --- | --- | --- |
+| **H1** Mean rule exploitable by one undercutter; median and cap not | **Supported, with a caveat.** A single learner frames rivals under the mean rule in all 20 seeds and never under median or cap. With all sellers learning, the mean rule is consistently more exploitable, but the median is not immune once two firms remain. | Figs. 1–2, `results/Krishs-MacBook-Air/all/study_single.csv`, `results/training_length/` |
+| **H2** Framing pays only when one ban is lethal | **Not supported as stated.** With a non-lethal buffer the learner still eliminates ~1.94 rivals per episode through repeated bans. | `study_single.csv` (non-lethal row) |
+| **H3** Framing falls with ethics, altruism, risk aversion | **Partly supported.** At 300M steps risk aversion (zero framing at α ≥ 1.5) and altruism (1.10 → 0.09) reduce framing; an ethics penalty up to μ = 1 has no effect. | Fig. 4, `results/traits_300M/` |
+| **H4** Learners find framing only where exact DP says it is optimal | **Not tested.** The exact DP solver returns negative exploitability gains, which is impossible for a best response, so it is not used. | `src/benchmarks/exact_dp.py` |
 
----
+## Status of the Original Roadmap
 
-## Methodological Roadmap
-
-### Step 1: Market Engine & Exact Dynamic Programming Baseline
-- Build fully vectorized market clearing, profit attribution, and capital dynamics in NumPy.
-- Solve a reduced Markov Decision Process ($N = 3$, $M \in \{6, 7, 8\}$ price levels, $T_{\text{ban}} \le 5$, capital discretized into $\approx 20$ levels; $\approx 10^6$ states).
-- Fix opponents to honest pricing and apply Value Iteration to compute firm 1's exact best response, mapping the analytical boundary of parameters $(\delta, T_{\text{ban}}, K_0/\Phi)$ where framing is profitable.
-
-### Step 2: Decentralized Multi-Agent Q-Learning
-- Deploy independent tabular Q-learners with decaying $\varepsilon$-greedy exploration.
-- Agent observation space: $o_{i,t} = (\mathbf{p}_{t-1}, \mathbf{b}_t, \kappa_{i,t})$, where $\kappa_{i,t} \in \{\text{low}, \text{mid}, \text{high}\}$ is a discretized capital bin.
-- State-action dimensionality: with $N=3$ and $M=11$ prices, each agent maintains an observation space of $11^3 \times 2^3 \times 3 \approx 3.2 \times 10^4$ states and $\approx 3.5 \times 10^5$ Q-values.
-- Run sweeps across at least 20 random seeds per configuration to capture distribution across non-stationary multi-agent learning trajectories.
-
-### Step 3: Phase Diagrams and Comparative Sweeps
-- Map phase diagrams of collusion index $\Delta$ and weaponization rate $W$ over the $(K_0/\Phi, T_{\text{ban}})$ parameter space.
-- Compare learned policy distributions against the exact DP exploitability frontier to quantify the learnability gap.
-- Run ablation sweeps across rule types, audit budgets $B$, threshold margins $\delta$, and trait profiles $(\lambda, \mu, \alpha)$.
-
-### Optional Extensions
-- **Extension A (Slow-Timescale Adaptive Regulator):** Formulate a bi-level reinforcement learning setup where the regulator adapts threshold $\delta$ and audit heuristics over macro-epochs $K_{\text{macro}} \gg 1$ based on history features $\mathcal{H}_t$, evaluated against an adversarial best-response pricing agent.
-- **Extension B (Out-of-Distribution Demand Shock):** Subject trained policies to exogenous shock dynamics $Q_t = Q \cdot \max\{0, 1 + \psi \mathbb{I}(\bar{p}_t > \bar{p}_{t-1}) + \xi_t\}$ with $\xi_t \sim \mathcal{N}(0, \sigma_s^2)$ without retraining, testing resilience under panic buying.
+| Item | Status |
+| --- | --- |
+| Market engine (logit demand, capital, bankruptcy, rules) | Done. Python reference plus a C++ loop that `tests/test_native_sim.py` checks is identical, Q-tables included. |
+| Exact DP best-response baseline | Implemented, but its results are invalid (see H4). Not used. |
+| Independent tabular Q-learning with traits | Done (`src/agents/`). |
+| Rule comparison, robustness, traits, N = 4 | Done (`experiments/run_study.py`, `experiments/check_training_length.py`). |
+| Phase diagram over K0/Φ × T_ban (`run_study.py h2`) | Run at 10M steps only, which Section 5.5 of `FINAL_REPORT.md` shows is too short. Not used as evidence. |
+| Extension A (learning regulator), Extension B (demand shock), DQN, EMA defence, tournament | Implemented, but last run before the fix to the learning dynamics. Their figures are in `plots/legacy/` and are **not** current results. |
 
 ---
 
@@ -321,8 +312,10 @@ Every experiment should start from a market where weaponization is possible at a
 | Fig. 2 (training length) | `python experiments/check_training_length.py --steps N` for N = 1e8, 3e8, 1e9; 10M from `run_study.py robust` | `results/training_length/`, `results/Krishs-MacBook-Air/all/study_robust.csv` |
 | Table 3 (four sellers) | `python experiments/run_study.py n4long` | `results/Krishs-MacBook-Air/all/study_n4long.csv` |
 | Fig. 3 (cap traces) | `python experiments/trace_cap_control.py --n-min 2` and `--n-min 1` | `results/cap_trace/` |
+| Cap controls (paper Section 5.4) | `python experiments/run_cap_controls.py` | `results/controls_rerun/cap_controls.csv` (matches `results/athena/controls/` exactly) |
 | Fig. 4 (traits) | `python experiments/run_study.py h3` (10M) and `--steps 300000000` | `results/Krishs-MacBook-Air/all/study_h3.csv`, `results/traits_300M/` |
 | All figures | `python scripts/make_paper_figures.py` | `paper/figures/` |
+| C++ vs Python speed-up (~930×) | `python scripts/benchmark_backends.py` | printed |
 | Metric validation (scripted attacker) | `pytest tests/test_scripted_attacker.py tests/test_framing_mechanics.py` | test output |
 
 `run_study.py` writes its CSV to `data/` (gitignored); the committed copies live under `results/`. Training uses the native C++ loop; `tests/test_native_sim.py` checks that it reproduces the Python reference implementation exactly, including Q-tables.

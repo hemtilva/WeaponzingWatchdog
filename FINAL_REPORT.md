@@ -155,7 +155,7 @@ The mean-rule outcomes are consistent with the model's framing mechanism against
 | Cap = 10, effectively inactive for this grid | 0.000 (0.000) | 0.000 (0.000) | 3.000 (0.000) |
 | Cap = 0.60, N_min = 1 | 0.000 (0.000) | 0.000 (0.000) | 3.000 (0.000) |
 
-*Table 2. Means (standard errors) across ten seeds per condition from [cap/no-effective-cap](results/athena/controls/control_cap_noreg.csv) and [N_min = 1](results/athena/controls/control_cap_nmin1.csv) controls. All three sellers learn. The controls were run with an ad-hoc driver, which is not preserved in full.*
+*Table 2. Means (standard errors) across ten seeds per condition from [cap/no-effective-cap](results/athena/controls/control_cap_noreg.csv) and [N_min = 1](results/athena/controls/control_cap_nmin1.csv) controls. All three sellers learn. These controls were first run with an ad-hoc driver that was not kept. We rewrote it as [run_cap_controls.py](experiments/run_cap_controls.py) and reran all three conditions with the same seeds on a different machine ([cap_controls.csv](results/controls_rerun/cap_controls.csv)); every number matches exactly.*
 
 ![Survivors in all-learning controls](plots/final_report/controls.png)
 
@@ -170,6 +170,8 @@ To see the sequence directly, we retrained the same ten control seeds and record
 3. The remaining firm is then alone, below N_min, so audits stop. It charges the top grid price of 1.50 for the remaining ~485 periods of the episode.
 
 Which firm survives differs across seeds and episodes, so this is not a fixed role assignment. The pattern is a gamble: pricing above the cap risks a lethal audit, but the firm that avoids an audit inherits an unregulated monopoly. With N_min = 1, the traces show no above-cap prices in any of the 20 episodes. Prices sit at or just below the cap (about 0.60), and no firm is banned or bankrupt. Without an effective cap the saved mean price is 0.63, also with no bans. The traces were produced on a different machine from the saved controls, but they reproduce the saved outcome of two bankruptcies per episode. The control therefore shows that the point at which regulation switches off creates an incentive of its own, separate from peer-price framing.
+
+**Welfare.** The collusion index Δ = (π̄ − π^N)/(π^M − π^N) and social welfare loss SWL (total surplus relative to Nash) are recorded in every CSV. When the single learner frames its rivals under the mean rule (δ = 0.10, lethal), Δ = 0.89 and SWL = 0.18: average profit is close to joint monopoly and total surplus is 18% below honest competition. Under the median rule and the cap both are zero. With all sellers learning for 1B steps, SWL is 0.183 (0.000) under the mean rule and 0.127 (0.019) under the median. The cap with N_min = 2 costs as much as framing (SWL 0.182), while the same cap with N_min = 1 costs almost nothing (0.001). Most of the welfare loss therefore comes from the market collapsing to one firm, whichever mechanism causes it.
 
 In the all-learning robustness study, mean-rule attributed bankruptcies were higher than median-rule values for each recorded parameter setting, but substantial other bankruptcies appeared under both rules; for example, at δ = 0.10 the respective means (standard errors) were 0.513 (0.121) and 0.253 (0.070) attributed bankruptcies and 1.490 (0.120) and 1.748 (0.070) other bankruptcies per episode. With ten seeds, that particular difference is about two standard errors at this training length. Section 5.5 shows that it widens considerably with longer training. The non-zero median values are consistent with Section 2.4: once one firm exits, the two remaining active firms face a median equal to their mean, so framing becomes possible under the median rule as well. These comparisons are exploratory and do not establish a universal ranking.
 
@@ -245,9 +247,9 @@ The main limitations are:
 2. **Partial observation and learning dynamics.** Independent Q-learners see compressed observations and face changing opponents. A frozen greedy policy after a fixed training budget is not proof of equilibrium or optimality. Section 5.5 shows that framing levels in the all-learning market are still changing at 10M steps and settle only after a few hundred million steps. The robustness and control results were measured at 10M steps.
 3. **Attribution.** Nash-price flag counterfactuals are useful diagnostics, but the bankruptcy proxy does not replay the market without the intervention. Joint attribution to one seller is a bookkeeping convention, and W is undefined if no bans occur.
 4. **Comparability.** The single-learner comparison uses fixed Nash-price rivals, whereas the controls and trait study have all sellers learning. Results from these settings should not be treated as estimates of the same causal effect.
-5. **Statistical and provenance limits.** The study includes multiple exploratory sweeps. The saved control driver was ad hoc, and some legacy figures lack underlying checked-in data. Tables report standard errors across seeds, but with 5–20 seeds per condition and no multiplicity correction, small differences should not be over-read. A small five-seed replication does not replace a preregistered study or broader sensitivity analysis.
+5. **Statistical and provenance limits.** The study includes multiple exploratory sweeps. Figures from before the learning-dynamics fix (extensions, DQN, old phase diagrams) are kept in `plots/legacy/` and are not used as evidence. Tables report standard errors across seeds, but with 5–20 seeds per condition and no multiplicity correction, small differences should not be over-read. A small five-seed replication does not replace a preregistered study or broader sensitivity analysis.
 
-Useful next steps are rerunning the robustness grid and controls at 300M+ training steps, a committed driver for every control, matched trajectory-level counterfactual replays, robustness to uncapped capital and alternative horizons, and a prospective experiment plan specifying primary outcomes, seed counts, and comparisons. A matched exact-DP versus learning study would help distinguish feasibility from learnability. The existing EMA, escrow, demand-shock, and DQN extensions are possible follow-on work; their historical figures are not used as evidence in this report.
+Useful next steps are rerunning the robustness grid and controls at 300M+ training steps, matched trajectory-level counterfactual replays, robustness to uncapped capital and alternative horizons, and a prospective experiment plan specifying primary outcomes, seed counts, and comparisons. A matched exact-DP versus learning study would help distinguish feasibility from learnability. The existing EMA, escrow, demand-shock, and DQN extensions are possible follow-on work; their historical figures are not used as evidence in this report.
 
 ## 7. Conclusion
 
@@ -273,6 +275,8 @@ python experiments/trace_cap_control.py --n-min 1
 python experiments/check_training_length.py --steps 100000000
 python experiments/check_training_length.py --steps 300000000
 python experiments/check_training_length.py --steps 1000000000
+python experiments/run_cap_controls.py
+python scripts/benchmark_backends.py
 python -m pytest -q --ignore=tests/test_dqn_agent.py
 ```
 
