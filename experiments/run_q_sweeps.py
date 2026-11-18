@@ -12,6 +12,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.engine.market import MarketConfig
+from src.benchmarks.diagnostics import framing_market
 from src.engine.rules import RuleType
 from src.agents.traits import AgentTraits
 from src.agents.q_learning import QLearningConfig
@@ -23,13 +24,13 @@ def run_single_seed(seed: int, rule_type: RuleType, delta: float, t_ban: int,
                     k0: float, phi: float, ethics_mu: float, altruism_lambda: float,
                     alpha_risk: float, agent_type: str = "adaptive") -> dict:
     """Executes a single simulation seed."""
-    m_cfg = MarketConfig(
+    # Viable market (Nash profit 0.10 > phi for the defaults) with the reserve capped at K0
+    m_cfg = framing_market(
         num_firms=3,
-        price_sensitivity=0.25,
+        threshold_delta=delta,
+        ban_duration=t_ban,
         fixed_cost=phi,
         initial_capital=k0,
-        ban_duration=t_ban,
-        threshold_delta=delta,
     )
     q_cfg = QLearningConfig(
         learning_rate=0.10,
@@ -144,10 +145,10 @@ def run_parallel_sweep(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Multi-seed Q-learning sweep runner.")
     parser.add_argument("--rule", type=str, default="mean", choices=["mean", "median", "cap"])
-    parser.add_argument("--delta", type=float, default=0.20)
-    parser.add_argument("--t-ban", type=int, default=3)
-    parser.add_argument("--k0", type=float, default=1.0)
-    parser.add_argument("--phi", type=float, default=0.1)
+    parser.add_argument("--delta", type=float, default=0.10)
+    parser.add_argument("--t-ban", type=int, default=4)
+    parser.add_argument("--k0", type=float, default=0.15)
+    parser.add_argument("--phi", type=float, default=0.05)
     parser.add_argument("--steps", type=int, default=100_000)
     parser.add_argument("--warmup", type=int, default=20_000)
     parser.add_argument("--episode-length", type=int, default=500)

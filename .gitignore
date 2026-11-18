@@ -35,3 +35,6 @@ htmlcov/
 output/
 data/
 
+
+# Smoke-test outputs
+plots/*_quick.png

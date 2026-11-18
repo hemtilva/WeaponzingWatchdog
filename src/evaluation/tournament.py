@@ -1,10 +1,15 @@
 """Axelrod-style Evolutionary Strategy Tournament for Heterogeneous Sellers (Option 3).
 
 Evaluates the evolutionary stability and population ecology of four seller archetypes:
-1. Pure Predator (mu = 0.0, lambda = 0.0, alpha = 1.0): Unconstrained profit seeker
-2. Ethical Seller (mu = 1.0, lambda = 0.0, alpha = 1.0): Internalizes regulatory harm
-3. Altruist Seller (mu = 0.0, lambda = 0.5, alpha = 1.0): Cares for consumer surplus
+1. Pure Predator (mu = 0.0, lambda = 0.0, alpha = 0.0): Unconstrained profit seeker
+2. Ethical Seller (mu = 1.0, lambda = 0.0, alpha = 0.0): Internalizes regulatory harm
+3. Altruist Seller (mu = 0.0, lambda = 0.5, alpha = 0.0): Cares for consumer surplus
 4. Risk-Averse Seller (mu = 0.0, lambda = 0.0, alpha = 1.5): Concave CRRA utility
+
+Fitness is realized monetary profit over the match's evaluation window (not the
+trait-adjusted reward), so archetypes compete on what they actually earn.
+Each match trains fresh Q-learners; exploration decays to eps_min by
+`explore_fraction` of the match so that the evaluation window reflects learned play.
 
 Simulates multi-generation selection via discrete Replicator Dynamics:
   x_k^{t+1} = (1 - epsilon_m) * x_k^t * (f_k / bar{f}) + epsilon_m / K
@@ -17,7 +22,9 @@ import numpy as np
 from src.engine.market import MarketConfig
 from src.engine.rules import RuleType
 from src.agents.traits import AgentTraits
+from src.agents.q_learning import QLearningConfig
 from src.agents.trainer import SimulationConfig, MultiAgentTrainer
+from src.benchmarks.diagnostics import framing_market
 
 
 ARCHETYPES: Dict[str, AgentTraits] = {
@@ -36,10 +43,12 @@ class TournamentConfig:
     """Hyperparameters for evolutionary strategy tournament."""
     num_generations: int = 30
     cohorts_per_gen: int = 6
-    steps_per_match: int = 500
-    warmup_steps: int = 50
-    episode_length: int = 150
-    eval_window: int = 250
+    steps_per_match: int = 20_000
+    warmup_steps: int = 0
+    episode_length: int = 500
+    eval_window: int = 5_000
+    explore_fraction: float = 0.6     # epsilon reaches eps_min at this fraction of the match
+    eps_min: float = 0.01
     num_firms: int = 4
     mutation_rate: float = 0.02
     rule_type: RuleType = RuleType.MEAN_RATIO
@@ -66,17 +75,16 @@ class EvolutionaryTournament:
 
     def __init__(self, config: TournamentConfig, market_config: Optional[MarketConfig] = None):
         self.cfg = config
-        self.m_cfg = market_config or MarketConfig(
-            num_firms=config.num_firms,
-            marginal_costs=[0.5] * config.num_firms,
-            qualities=[2.0] * config.num_firms,
-            price_sensitivity=0.25,
-            fixed_cost=0.10,
-            initial_capital=1.0,
-            ban_duration=3,
-            threshold_delta=0.20,
+        # Viable (Nash profit > fixed cost) and lethal market, so bankruptcies come from bans
+        self.m_cfg = market_config or framing_market(
+            num_firms=config.num_firms, lethal=True, threshold_delta=config.rule_param,
         )
         self.rng = np.random.default_rng(config.seed)
+        explore_steps = max(1, int(config.explore_fraction * config.steps_per_match))
+        self.q_cfg = QLearningConfig(
+            eps_min=config.eps_min,
+            eps_decay=float(config.eps_min ** (1.0 / explore_steps)),
+        )
 
     def run(self) -> TournamentResults:
         """Runs full multi-generation tournament with replicator dynamics."""
@@ -99,6 +107,7 @@ class EvolutionaryTournament:
 
                 sim_cfg = SimulationConfig(
                     market=self.m_cfg,
+                    q_learning=self.q_cfg,
                     total_steps=self.cfg.steps_per_match,
                     warmup_steps=self.cfg.warmup_steps,
                     episode_length=self.cfg.episode_length,

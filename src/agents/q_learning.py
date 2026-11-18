@@ -23,7 +23,7 @@ class StateIndexer:
 
     Supports arbitrary N active firms (e.g. N=3 or N=4 standard):
       1. Lagged joint prices: p_{t-1} in {0, ..., M-1}^N -> M^N values
-      2. Ban indicators: b_t in {0, 1}^N -> 2^N values
+      2. Inactivity indicators: b_t in {0, 1}^N (banned OR bankrupt) -> 2^N values
       3. Capital bin: kappa in {low=0, mid=1, high=2} -> 3 values
 
     Total states: (M^N) * (2^N) * 3.
@@ -126,6 +126,12 @@ class QLearningAgent:
         # State visitation tracking (Feedback 1)
         self.state_visit_counts = np.zeros(self.num_states, dtype=np.int32)
 
+        # Open (semi-Markov) transition: (state, action, accumulated reward, discount).
+        # A transition stays open while the agent is suspended, so the reward of the
+        # zero-revenue ban periods is credited to the action that preceded the ban,
+        # and bootstrapping happens from the next state in which the agent acts again.
+        self._pending: Optional[Tuple[int, int, float, float]] = None
+
     @property
     def unique_states_visited(self) -> int:
         """Returns total distinct states visited by this agent."""
@@ -142,9 +148,12 @@ class QLearningAgent:
         """Returns count of states visited at least min_visits times."""
         return int(np.count_nonzero(self.state_visit_counts >= min_visits))
 
-    def select_action(self, state_idx: int, rng: np.random.Generator) -> int:
-        """Selects action via epsilon-greedy policy with uniform random tie-breaking."""
-        if rng.random() < self.epsilon:
+    def select_action(self, state_idx: int, rng: np.random.Generator, explore: bool = True) -> int:
+        """Selects action via epsilon-greedy policy with uniform random tie-breaking.
+
+        explore=False gives the greedy policy (used for frozen evaluation).
+        """
+        if explore and rng.random() < self.epsilon:
             return int(rng.integers(0, self.num_actions))
 
         # Greedy choice with uniform random tie breaking
@@ -178,6 +187,44 @@ class QLearningAgent:
         self.Q[state_idx, action_idx] += np.float32(
             self.cfg.learning_rate * (target - current_q)
         )
+
+    # ------------------------------------------------------------------
+    # Semi-Markov transition interface (used by the trainers)
+    # ------------------------------------------------------------------
+    @property
+    def has_pending(self) -> bool:
+        return self._pending is not None
+
+    def begin_transition(self, state_idx: int, action_idx: int) -> None:
+        """Opens a transition for the action just taken in `state_idx`."""
+        self._pending = (int(state_idx), int(action_idx), 0.0, 1.0)
+
+    def accumulate_reward(self, reward: float) -> None:
+        """Adds one period's reward to the open transition (discounted by elapsed periods)."""
+        if self._pending is None:
+            return
+        s, a, acc, disc = self._pending
+        self._pending = (s, a, acc + disc * float(reward), disc * self.cfg.gamma)
+
+    def close_transition(self, next_state_idx: Optional[int], terminal: bool = False) -> None:
+        """Closes the open transition and applies the TD update.
+
+        target = R_acc + gamma^k * max_a' Q(s', a')   (no bootstrap if terminal)
+        """
+        if self._pending is None:
+            return
+        s, a, acc, disc = self._pending
+        self._pending = None
+
+        self.state_visit_counts[s] += 1
+        target = acc
+        if not terminal and next_state_idx is not None:
+            target += disc * float(np.max(self.Q[next_state_idx]))
+        self.Q[s, a] += np.float32(self.cfg.learning_rate * (target - self.Q[s, a]))
+
+    def greedy_action(self, state_idx: int) -> int:
+        """Greedy action (lowest index on ties, deterministic)."""
+        return int(np.argmax(self.Q[state_idx]))
 
     def decay_epsilon(self):
         """Decays epsilon towards eps_min."""

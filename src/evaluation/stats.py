@@ -175,3 +175,10 @@ def test_hypothesis_h3(
         "p_value": float(p_val),
         "monotonic_decrease_supported": bool(is_negative),
     }
+
+
+# These are library functions, not pytest tests; stop pytest from collecting them
+# when they are imported into a test module.
+test_hypothesis_h1.__test__ = False
+test_hypothesis_h2.__test__ = False
+test_hypothesis_h3.__test__ = False

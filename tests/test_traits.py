@@ -61,3 +61,25 @@ def test_compute_agent_reward_altruism():
     # Difference should be lambda * W_ext = 0.5 * 2.0 = 1.0
     assert np.isclose(r_altruist - r_selfish, 1.0)
 
+
+
+@pytest.mark.parametrize("alpha", [0.0, 0.5, 1.0, 1.5, 2.0])
+def test_reward_anchored_at_zero_profit(alpha):
+    """A zero-profit period is worth exactly 0 and any profit is worth more.
+
+    Guards against the old unanchored CRRA reward, which was negative for every
+    realistic profit and made bankruptcy (terminal value 0) look attractive.
+    """
+    traits = AgentTraits(alpha=alpha)
+    kw = dict(Q=1.0, CS=2.0, other_profits_sum=0.2, N=3, harm_count=0, traits=traits)
+    r_zero = compute_agent_reward(profit=0.0, **kw)
+    r_small = compute_agent_reward(profit=0.05, **kw)
+    r_large = compute_agent_reward(profit=0.20, **kw)
+    assert np.isclose(r_zero, 0.0)
+    assert 0.0 < r_small < r_large
+
+
+def test_risk_neutral_reward_equals_profit():
+    r = compute_agent_reward(profit=0.1, Q=1.0, CS=2.0, other_profits_sum=0.2, N=3,
+                             harm_count=0, traits=AgentTraits(alpha=0.0))
+    assert np.isclose(r, 0.1)

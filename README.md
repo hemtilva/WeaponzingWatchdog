@@ -185,11 +185,12 @@ WeaponzingWatchdog/
 │   ├── benchmarks/
 │   │   ├── nash.py                  # Pure-strategy Bertrand-Nash stage solver
 │   │   ├── monopoly.py              # Joint monopoly profit maximizer
-│   │   └── exact_dp.py              # Full-information Value Iteration solver
+│   │   ├── exact_dp.py              # Full-information Value Iteration solver
+│   │   └── diagnostics.py           # Pre-flight checks (viable / lethal / framing feasible) + framing_market preset
 │   ├── agents/
 │   │   ├── q_learning.py            # Independent tabular Q-learning implementation
 │   │   ├── traits.py                # CRRA utility, altruism, ethics reward scaling
-│   │   └── counterfactual.py        # Counterfactual harm attribution engine
+│   │   └── trainer.py               # Simulation loop, per-firm policies, metrics (harm attribution lives in engine/rules.py)
 │   ├── evaluation/
 │   │   ├── metrics.py               # Computation of W, Exploitability, Delta, SWL
 │   │   └── stats.py                 # Confidence intervals, bootstrapping, tests
@@ -200,7 +201,7 @@ WeaponzingWatchdog/
 │   ├── build_engine.py              # Cross-platform compiler detector & build script
 │   ├── generate_phase_diagrams.py   # Multi-rule phase diagram generator (Figure 1)
 │   ├── generate_trace_plot.py       # Step-by-step price and ban timeline trace visualizer
-│   └── run_all_tests.py             # Master test suite runner (53 unit tests)
+│   └── run_all_tests.py             # Master test suite runner
 ├── dashboard/                       # Interactive local web dashboard
 │   ├── server.py                    # Lightweight HTTP simulation server
 │   └── index.html                   # Interactive simulation UI
@@ -210,8 +211,9 @@ WeaponzingWatchdog/
 │   ├── run_trait_ablations.py       # Parametric trait sweeps over (λ, μ, α)
 │   ├── run_extension_a.py           # Extension A: Adaptive regulator & cyclic dynamics
 │   ├── run_extension_b.py           # Extension B: Demand shock cohort sweeps
+│   ├── run_framing_discovery.py     # Single learner vs honest rivals: is framing learned? (H1/H2)
 │   └── run_full_production_suite.py # Master runner (--smoke-test vs --production)
-└── tests/                           # 53 unit tests verifying Proposition 1, harm, and extensions
+└── tests/                           # Unit tests: Proposition 1, harm, framing mechanics, extensions
     ├── test_scripted_attacker.py    # Ground truth harm measure W verification
     └── ...
 ```
@@ -249,6 +251,20 @@ python scripts/build_engine.py
 # Execute unit tests verifying Proposition 1 and market clearing logic
 pytest tests/ -v
 ```
+
+### Does a learner discover framing?
+```bash
+# One Q-learner vs honest Nash rivals; mean / median / cap rules, lethal vs non-lethal bans
+python experiments/run_framing_discovery.py            # full: 5 configs x 5 seeds
+python experiments/run_framing_discovery.py --quick    # smoke test
+```
+Every experiment should start from a market where weaponization is possible at all.
+`src/benchmarks/diagnostics.py` checks this before training:
+- **viable**: honest Nash profit exceeds the fixed cost Φ, so firms don't go bankrupt on their own
+- **lethal**: one full ban drains the starting reserve (T_ban × Φ ≥ K0)
+- **framing feasible**: a lone undercutter on the price grid can push Nash-priced rivals over the threshold
+
+`framing_market()` returns such a market (N=3: Nash profit `0.10`, Φ = `0.05`, K0 = `0.15`, T_ban = `4`, reserve capped at K0).
 
 ---
 
