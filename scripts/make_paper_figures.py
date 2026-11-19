@@ -153,9 +153,72 @@ def fig_traits():
     plt.close(fig)
 
 
+# ------------------------------------------------------------------ Fig: phase diagram (H2)
+def fig_phase():
+    from matplotlib.colors import LinearSegmentedColormap
+    from matplotlib.patches import Rectangle
+    d = pd.read_csv(RES / "long_300M/study_h2_300M.csv")
+    cmap = LinearSegmentedColormap.from_list("seq", ["#f4f7fc", "#9cc0ec", BLUE, "#123e75"])
+    fig, axes = plt.subplots(1, 2, figsize=(6.4, 2.7), sharey=True)
+    for ax, rule, title in zip(axes, ("mean", "median"), ("Mean rule", "Median rule")):
+        piv = d[d.rule_name == rule].pivot_table(index="ratio", columns="T_ban", values="kills_per_ep")
+        im = ax.imshow(piv.values, cmap=cmap, vmin=0, vmax=1.5, origin="lower", aspect="auto")
+        ax.grid(False)
+        ax.set_xticks(range(len(piv.columns)), piv.columns)
+        ax.set_yticks(range(len(piv.index)), piv.index)
+        for i, k in enumerate(piv.index):
+            for j, t in enumerate(piv.columns):
+                v = piv.values[i, j]
+                ax.text(j, i, f"{v:.2f}", ha="center", va="center", fontsize=7,
+                        color="white" if v > 0.8 else INK)
+                if k <= t:   # one ban is lethal: K0 <= T_ban * Phi
+                    ax.add_patch(Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False, lw=1.2, ec=ORANGE))
+        ax.set_title(title)
+        ax.set_xlabel("Ban length $T_{\\mathrm{ban}}$")
+    axes[0].set_ylabel("Capital buffer $K_0/\\Phi$")
+    cb = fig.colorbar(im, ax=axes, shrink=0.85, pad=0.02)
+    cb.set_label("Attributed bankruptcies / episode", fontsize=8)
+    cb.outline.set_visible(False)
+    fig.savefig(OUT / "phase_diagram.pdf")
+    fig.savefig(OUT / "phase_diagram.png", dpi=200)
+    plt.close(fig)
+
+
+# ------------------------------------------------------------------ Fig: sensitivity
+def fig_sensitivity():
+    d = pd.read_csv(RES / "sensitivity/all.csv")
+    d["cond"] = d.tag.str.rsplit(" ", n=1).str[0]
+    order = list(dict.fromkeys(d.cond))
+    labels = {"a0=1.0": "$a_0=1.0$", "a0=1.5": "$a_0=1.5$", "sigma=0.15": "$\\sigma=0.15$",
+              "sigma=0.25": "$\\sigma=0.25$", "sigma=0.40": "$\\sigma=0.40$", "N=3 M=7": "$N=3$",
+              "N=4 M=7": "$N=4$", "N=5 M=7": "$N=5$", "uncapped capital": "uncapped $K$",
+              "eta=0.05": "$\\eta=0.05$", "eta=0.20": "$\\eta=0.20$", "gamma=0.90": "$\\gamma=0.90$",
+              "gamma=0.99": "$\\gamma=0.99$"}
+    fig, ax = plt.subplots(figsize=(6.2, 2.4))
+    x = np.arange(len(order))
+    for off, rule, c, mk, lab in [(-0.12, "mean", BLUE, "o", "Mean rule"), (0.12, "median", ORANGE, "s", "Median rule")]:
+        g = [d[(d.cond == k) & (d.rule_name == rule)].kills_per_ep for k in order]
+        ax.errorbar(x + off, [v.mean() for v in g], yerr=[se(v) for v in g], fmt=mk, color=c, ms=5,
+                    capsize=2, label=lab, markeredgecolor="white", markeredgewidth=0.6)
+    ax.set_xticks(x, [labels[k] for k in order], rotation=45, ha="right")
+    ax.set_ylabel("Attributed bankruptcies\n/ episode")
+    ax.set_ylim(bottom=0)
+    ax.grid(axis="x", visible=False)
+    axes_of = [k.split("=")[0] if "=" in k else k for k in order]
+    for i in range(1, len(order)):
+        if axes_of[i] != axes_of[i - 1]:
+            ax.axvline(i - 0.5, color=GRID, lw=1)
+    ax.legend(loc="upper right", ncol=2)
+    fig.savefig(OUT / "sensitivity.pdf")
+    fig.savefig(OUT / "sensitivity.png", dpi=200)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     fig_single()
     fig_training()
     fig_trace()
     fig_traits()
+    fig_phase()
+    fig_sensitivity()
     print(f"figures written to {OUT}")
