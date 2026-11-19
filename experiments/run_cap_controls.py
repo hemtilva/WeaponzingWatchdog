@@ -34,7 +34,7 @@ def main():
     rows = run_jobs(jobs, args.workers)
     out = ROOT / "results" / "controls_rerun"
     out.mkdir(parents=True, exist_ok=True)
-    path = out / "cap_controls.csv"
+    path = out / ("cap_controls.csv" if args.steps == 10_000_000 else f"cap_controls_{args.steps // 1_000_000}M.csv")
     with open(path, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
         w.writeheader()

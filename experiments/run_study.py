@@ -291,8 +291,9 @@ def main():
     ap.add_argument("--eval-steps", type=int, default=50_000)
     ap.add_argument("--workers", type=int, default=None)
     ap.add_argument("--quick", action="store_true", help="2 seeds, 200k steps, outputs suffixed _quick")
+    ap.add_argument("--suffix", default="", help="suffix for output CSV/plot names, e.g. _300M")
     a = ap.parse_args()
-    a.sfx = "_quick" if a.quick else ""
+    a.sfx = "_quick" if a.quick else a.suffix
     if a.quick:
         a.steps, a.eval_steps = 200_000, 5_000
     for name in (STUDIES if a.study == "all" else [a.study]):
