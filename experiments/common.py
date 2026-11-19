@@ -54,6 +54,13 @@ class Job:
     episode_length: int = 500
     penalty_mode: str = "shutdown"          # "shutdown" (ban) or "escrow" (divert profit above Nash)
     ema_beta: float = 0.95                     # memory of the EMA_MEAN_RATIO reference
+    # Sensitivity axes (defaults reproduce every study above)
+    outside_option: float = 0.0                # a0: utility of not buying
+    price_sensitivity: float = 0.25            # sigma
+    capped_capital: bool = True                # reserves capped at K0 (False: unlimited)
+    grid_max: float = 1.5                      # top of the price grid
+    learning_rate: float = 0.10                # eta
+    gamma: float = 0.95
     extra: Dict[str, object] = field(default_factory=dict)  # copied into the output row
 
 
@@ -68,10 +75,14 @@ def build(job: Job) -> MultiAgentTrainer:
     )
     market.audit_budget = job.audit_budget
     market.min_active_for_audit = job.n_min
-    grid = np.linspace(0.0, 1.5, job.price_levels)
+    market.outside_option = job.outside_option
+    market.price_sensitivity = job.price_sensitivity
+    if not job.capped_capital:
+        market.capital_cap = None
+    grid = np.linspace(0.0, job.grid_max, job.price_levels)
     eps_min = 0.01
     q_cfg = QLearningConfig(
-        learning_rate=0.10, gamma=0.95, eps_start=1.0, eps_min=eps_min,
+        learning_rate=job.learning_rate, gamma=job.gamma, eps_start=1.0, eps_min=eps_min,
         eps_decay=float(eps_min ** (1.0 / max(1, int(job.explore_frac * job.train_steps)))),
     )
     traits = [AgentTraits(**t) for t in job.traits] if job.traits else None
@@ -101,6 +112,8 @@ def run_job(job: Job) -> Dict[str, object]:
         "phi": job.fixed_cost, "T_ban": job.ban_duration, "B": job.audit_budget, "M": job.price_levels,
         "train_steps": job.train_steps,
         "penalty_mode": job.penalty_mode, "ema_beta": job.ema_beta,
+        "a0": job.outside_option, "sigma": job.price_sensitivity, "capped": job.capped_capital,
+        "grid_max": job.grid_max, "eta": job.learning_rate, "gamma": job.gamma,
         "nash_price": float(tr.nash_prices[0]), "nash_profit": float(tr.nash_profits[0]),
         # greedy (frozen) outcome
         "kills_per_ep": float(g.kills_by.sum()) / ep,
