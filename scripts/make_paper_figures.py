@@ -214,6 +214,40 @@ def fig_sensitivity():
     plt.close(fig)
 
 
+# ------------------------------------------------------------------ Fig: two deep learners
+def fig_two_learners():
+    fig, axes = plt.subplots(1, 2, figsize=(6.4, 2.4))
+    ns = [3, 5, 8]
+    x = np.arange(len(ns))
+    for off, rule, c, lab in [(-0.19, "mean", BLUE, "Mean rule"), (0.19, "median", ORANGE, "Median rule")]:
+        surv, honest = [], []
+        for n in ns:
+            d = pd.read_csv(RES / f"dqn_multi/n{n}_full.csv")
+            g = d[d.rule == rule]
+            surv.append((g.survivors_per_ep.mean(), se(g.survivors_per_ep)))
+            honest.append((g.fixed_rival_bankruptcies_per_ep.mean() / (n - 2),
+                           se(g.fixed_rival_bankruptcies_per_ep / (n - 2))))
+        bar(axes[0], x + off, [m for m, _ in honest], [e for _, e in honest], c, lab)
+        bar(axes[1], x + off, [m for m, _ in surv], [e for _, e in surv], c, lab)
+        for xi, (m, _) in zip(x + off, honest):
+            if m == 0:
+                axes[0].text(xi, 0.02, "0", ha="center", fontsize=8, color=INK2)
+    for i, n in enumerate(ns):
+        axes[1].hlines(n, i - 0.4, i + 0.4, colors=INK2, linestyles=":", lw=1)
+    axes[0].set_ylabel("Share of honest sellers\nbankrupted per episode")
+    axes[0].set_ylim(0, 1.1)
+    axes[1].set_ylabel("Survivors per episode")
+    axes[1].set_ylim(0, 8.8)
+    for ax in axes:
+        ax.set_xticks(x, [f"$N={n}$" for n in ns])
+    axes[1].text(2.42, 8.15, "all sellers", fontsize=7, color=INK2, ha="right")
+    axes[1].legend(loc="upper left")
+    fig.tight_layout()
+    fig.savefig(OUT / "two_learners.pdf")
+    fig.savefig(OUT / "two_learners.png", dpi=200)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     fig_single()
     fig_training()
@@ -221,4 +255,5 @@ if __name__ == "__main__":
     fig_traits()
     fig_phase()
     fig_sensitivity()
+    fig_two_learners()
     print(f"figures written to {OUT}")
