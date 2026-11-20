@@ -248,6 +248,53 @@ def fig_two_learners():
     plt.close(fig)
 
 
+# ------------------------------------------------------------------ Fig: the attack + training length
+def fig_attack_training():
+    t = pd.read_csv(RES / "single_trace/trace.csv")
+    t = t[t.t <= 20]
+    fig, axes = plt.subplots(1, 2, figsize=(6.4, 1.95), gridspec_kw={"width_ratios": [1.25, 1]})
+    ax = axes[0]
+    for i, c, mk, lab in [(0, BLUE, "o", "Learner"), (1, ORANGE, "s", "Rival 1 (Nash)"), (2, AQUA, "^", "Rival 2 (Nash)")]:
+        alive = t[f"K{i}"] > 0
+        ax.plot(t.t[alive], t[f"p{i}"][alive], color=c, marker=mk, ms=3.5, lw=1.4, label=lab,
+                markeredgecolor="white", markeredgewidth=0.5)
+        banned = t[(t[f"ban{i}"] > 0) & alive]
+        if len(banned):
+            ax.scatter(banned.t, banned[f"p{i}"], s=55, facecolors="none", edgecolors=c, linewidths=1.1, zorder=4)
+        dead = t[~alive]
+        if len(dead):
+            ax.scatter(dead.t.iloc[:1], dead[f"p{i}"].iloc[:1], marker="x", s=45, color=c, linewidths=1.8, zorder=5)
+    ax.axhline(0.30, color=INK2, ls=":", lw=1)
+    ax.text(20, 0.36, "Nash 0.30", ha="right", fontsize=7, color=INK2)
+    ax.set_xlabel("Period within episode")
+    ax.set_ylabel("Price")
+    ax.set_ylim(-0.08, 1.65)
+    ax.set_title("(a) A learned framing attack (mean rule)")
+    ax.legend(loc="center right", fontsize=7)
+
+    ax = axes[1]
+    rob = pd.read_csv(RES / "Krishs-MacBook-Air/all/study_robust.csv")
+    rows = [(1e7, rob[rob.tag.isin(["delta=0.1 mean", "delta=0.1 median"])])]
+    for s_, v in [("100M", 1e8), ("300M", 3e8), ("1000M", 1e9)]:
+        rows.append((v, pd.read_csv(RES / f"training_length/all_learner_{s_}.csv")))
+    for rule, name, c, mk in [("MEAN_RATIO", "Mean rule", BLUE, "o"), ("MEDIAN_RATIO", "Median rule", ORANGE, "s")]:
+        ax.errorbar([s_ for s_, _ in rows], [d.loc[d.rule == rule, "kills_per_ep"].mean() for _, d in rows],
+                    yerr=[se(d.loc[d.rule == rule, "kills_per_ep"]) for _, d in rows], color=c, marker=mk, ms=4,
+                    capsize=2, label=name, markeredgecolor="white", markeredgewidth=0.6)
+    ax.set_xscale("log")
+    ax.set_xticks([1e7, 1e8, 3e8, 1e9], ["10M", "100M", "300M", "1B"])
+    ax.minorticks_off()
+    ax.set_xlabel("Training steps")
+    ax.set_ylabel("Attributed bankr. / ep.")
+    ax.set_ylim(bottom=0)
+    ax.set_title("(b) All sellers learning")
+    ax.legend(loc="upper left", fontsize=7)
+    fig.tight_layout()
+    fig.savefig(OUT / "attack_training.pdf")
+    fig.savefig(OUT / "attack_training.png", dpi=200)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     fig_single()
     fig_training()
@@ -256,4 +303,5 @@ if __name__ == "__main__":
     fig_phase()
     fig_sensitivity()
     fig_two_learners()
+    fig_attack_training()
     print(f"figures written to {OUT}")
