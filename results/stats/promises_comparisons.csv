@@ -1,0 +1,29 @@
+group,comparison,metric,a_mean,b_mean,diff,ci_lo,ci_hi,p,n_a,n_b,p_holm
+rules,all: z0.5 vs mean (random audit),kills_per_ep,1.0515,1.2510,-0.1995,-0.5295,0.1209,0.2686,10,10,1.0000
+rules,all: z1.0 vs mean (random audit),kills_per_ep,0.1520,1.2510,-1.0990,-1.3983,-0.7764,0.0001,10,10,0.0028
+rules,all: planner vs mean (random audit),kills_per_ep,0.0000,1.2510,-1.2510,-1.4894,-1.0108,0.0001,10,10,0.0028
+rules,all: planner vs median (random audit),kills_per_ep,0.0000,0.4053,-0.4053,-0.6026,-0.2214,0.0003,10,10,0.0048
+rules,"all: planner vs mean, welfare loss",swl,0.0000,0.1737,-0.1737,-0.1832,-0.1601,0.0001,10,10,0.0028
+rules,single: z0.5 vs median,kills_by_q_per_ep,2.0000,0.0000,2.0000,2.0000,2.0000,0.0001,20,20,0.0028
+audit,all mean: top vs random,kills_per_ep,0.2000,1.2510,-1.0510,-1.4285,-0.5518,0.0013,10,10,0.0169
+audit,all median: top vs random,kills_per_ep,0.0000,0.4053,-0.4053,-0.6007,-0.2247,0.0003,10,10,0.0048
+audit,all cap: top vs random,kills_per_ep,0.0000,0.0000,0.0000,0.0000,0.0000,1.0000,10,10,1.0000
+audit,all z0.5: top vs random,kills_per_ep,0.0000,1.0515,-1.0515,-1.2509,-0.8258,0.0001,10,10,0.0028
+audit,all z1.0: top vs random,kills_per_ep,1.0000,0.1520,0.8480,0.6320,0.9850,0.0003,10,10,0.0048
+audit,"all mean: top vs random, mean price",mean_price,0.1943,1.3147,-1.1204,-1.2934,-0.9218,0.0001,10,10,0.0028
+audit,single mean: top vs random,kills_by_q_per_ep,2.0000,2.0000,0.0000,0.0000,0.0000,1.0000,20,20,1.0000
+tban,mean: T_ban=3 vs 1,kills_per_ep,1.2510,0.3460,0.9050,0.6509,1.1656,0.0002,10,10,0.0036
+timers,all mean: timers seen vs bit,kills_per_ep,0.8036,1.2510,-0.4474,-0.7967,-0.1185,0.0273,10,10,0.3003
+tban,median: T_ban=3 vs 1,kills_per_ep,0.4053,0.2810,0.1243,-0.0983,0.3519,0.3117,10,10,1.0000
+timers,all median: timers seen vs bit,kills_per_ep,0.3690,0.4053,-0.0363,-0.2622,0.1791,0.7611,10,10,1.0000
+timers,single mean: timers seen vs bit (2M),kills_by_q_per_ep,0.9220,2.0000,-1.0780,-1.3570,-0.8215,0.0001,20,20,0.0028
+timers,single mean: timers seen vs bit (20M),kills_by_q_per_ep,2.0000,2.0000,0.0000,0.0000,0.0000,1.0000,20,20,1.0000
+timers,single mean: timers seen vs bit (100M),kills_by_q_per_ep,2.0000,2.0000,0.0000,0.0000,0.0000,1.0000,20,20,1.0000
+mixtures,all risk-averse vs all neutral,kills_per_ep,0.0000,1.1008,-1.1008,-1.3341,-0.8665,0.0001,10,10,0.0028
+mixtures,1 neutral + 2 averse vs all averse,kills_per_ep,1.2436,0.0000,1.2436,1.0369,1.4628,0.0001,10,10,0.0028
+mixtures,all altruistic vs all neutral,kills_per_ep,0.0900,1.1008,-1.0108,-1.2789,-0.7236,0.0001,10,10,0.0028
+mixtures,1 selfish + 2 altruistic vs all altruistic,kills_per_ep,1.1020,0.0900,1.0120,0.7360,1.2876,0.0002,10,10,0.0036
+mixtures,all ethical vs all neutral,kills_per_ep,1.1232,1.1008,0.0224,-0.3150,0.3476,0.9006,10,10,1.0000
+mixtures,alpha: 1 neutral + 2 averse: neutral firm vs averse firms (paired),kills by firm,0.5571,0.3432,0.2139,0.0289,0.3755,0.0524,10,10,0.5239
+mixtures,lambda: 1 selfish + 2 altruistic: selfish firm vs altruistic firms (paired),kills by firm,0.5928,0.2546,0.3381,0.1232,0.5339,0.0170,10,10,0.2040
+mixtures,mu: 1 predator + 2 ethical: predator vs ethical firms (paired),kills by firm,0.5531,0.3884,0.1647,-0.0595,0.3959,0.2029,10,10,1.0000

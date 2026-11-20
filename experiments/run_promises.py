@@ -7,6 +7,9 @@
   tban      Ban length T_ban in {1, 3, 5, 10} (proposal Step 3) at K0 = 3 Phi, mean vs median,
             and the ban-timer observation ablation (proposal 4.3): learners see exact ban
             timers instead of an inactive bit, T_ban = 4. All learners, 300M steps, 10 seeds.
+  timerlen  Follow-up to the timer ablation: single learner vs two Nash rivals with and
+            without exact ban timers at 2M, 20M and 100M steps (20 seeds), to separate
+            information from the slower learning of a 27x larger state space.
   mixtures  Trait mixtures (proposal Step 3 and Table 1, homogeneous all-ethical vs
             all-predatory): heterogeneous populations in mu, alpha and lambda under the mean
             rule; per-firm kills and bankruptcies show who frames whom. 300M steps, 10 seeds.
@@ -14,7 +17,7 @@
 Seeds match the main study (3000+ single learner, 4000+ rules/T_ban, 5000+ traits), so
 control cells reproduce stored results exactly.
 
-  python experiments/run_promises.py rules|tban|mixtures|all [--seeds N] [--steps S] [--quick]
+  python experiments/run_promises.py rules|tban|timerlen|mixtures|all [--seeds N] [--steps S] [--quick]
 Output: results/promises/<study>.csv
 """
 import argparse
@@ -113,6 +116,17 @@ def study_tban(a):
     summary([r for r in rows if r["study"] == "timer_obs_single"], ("kills_by_q_per_ep", "firm0_profit"))
 
 
+def study_timerlen(a):
+    jobs = [Job(tag=f"single mean timers={'seen' if obs else 'bit'} steps={st // 1_000_000}M", seed=3000 + s,
+                policies=["q", "nash", "nash"], train_steps=st, observe_ban_timers=obs,
+                extra=dict(study="timerlen"))
+            for st in (2_000_000, 20_000_000, 100_000_000) for obs in (False, True)
+            for s in range(a.single_seeds)]
+    rows = run_jobs(jobs, a.workers)
+    save(rows, "timerlen.csv")
+    summary(rows, ("kills_by_q_per_ep", "firm0_profit", "firm0_price", "coverage"))
+
+
 def study_mixtures(a):
     jobs = [Job(tag=name, seed=5000 + s, traits=traits, train_steps=a.steps, extra=dict(study="mixture"))
             for name, traits in MIXTURES.items() for s in range(a.seeds)]
@@ -124,7 +138,7 @@ def study_mixtures(a):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("study", choices=["rules", "tban", "mixtures", "all"])
+    ap.add_argument("study", choices=["rules", "tban", "timerlen", "mixtures", "all"])
     ap.add_argument("--seeds", type=int, default=10)
     ap.add_argument("--single-seeds", type=int, default=20)
     ap.add_argument("--steps", type=int, default=300_000_000)
@@ -137,7 +151,7 @@ def main():
         a.steps = a.single_steps = 200_000
         global OUT
         OUT = ROOT / "results" / "promises_quick"
-    studies = {"rules": study_rules, "tban": study_tban, "mixtures": study_mixtures}
+    studies = {"rules": study_rules, "tban": study_tban, "timerlen": study_timerlen, "mixtures": study_mixtures}
     for name in (studies if a.study == "all" else [a.study]):
         print(f"\n=== {name} ===", flush=True)
         studies[name](a)
