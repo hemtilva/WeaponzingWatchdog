@@ -211,8 +211,24 @@ Under the mean rule the tabular learner frames both rivals in every seed (Table~
 
 \subsection{Two learners among honest sellers: cooperate, then fight}
 
+\begin{table}[t]
+\centering
+\caption{Two independent DQN learners among $N-2$ Nash sellers, mean rule, $2\times10^6$ steps, 10 seeds. ``Duel'': seeds where a learner is bankrupted in most episodes. ``Caused jointly / alone'': bankruptcies avoided in the replay only if both learners, or either alone, price at Nash. Last column: survivors under the median rule.}
+\label{tab:two}
+\small
+\begin{tabular}{@{}ccccccc@{}}
+\toprule
+$N$ & Honest bankrupted & Duel & Survivors & Profit / learner (Nash) & Caused jointly / alone & Median survivors \\
+\midrule
+3 & 1.00 of 1 & 9/10 & 1.12 & 0.557 (0.100) & 1.82 / 0.85 & 2.80 \\
+5 & 2.92 of 3 & 10/10 & 1.05 & 0.619 (0.060) & 3.56 / 1.49 & 4.96 \\
+8 & 5.51 of 6 & 10/10 & 1.38 & 0.534 (0.038) & 6.06 / 5.50 & 8.00 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-Two independent DQN learners among $N-2$ Nash sellers ($2\times10^6$ steps, 10 seeds) first undercut together and bankrupt almost all honest sellers in every seed ($1.00$ of 1, $2.92$ of 3 and $5.51$ of 6 per episode for $N=3,5,8$), many of these kills being avoided in the replay only if \emph{both} learners price honestly; then they frame each other until one monopolist remains, in 29 of 30 seeds, learners earning on average 6--14 times the Nash profit. The median rule protects the honest sellers whenever the two learners are a minority ($N=5,8$: $4.96$ and $8.00$ survivors); at $N=3$ they are a majority, fall outside Proposition~\ref{prop:vuln}(ii), and framed in one seed of ten.
+
+Two independent deep learners first undercut together and bankrupt almost all honest sellers in every seed, many of these kills being avoided in the replay only if \emph{both} learners price honestly; then they frame each other until one monopolist remains, in 29 of 30 seeds, with the winner varying across episodes (Table~\ref{tab:two}). The median rule protects the honest sellers whenever the two learners are a minority ($N=5,8$); at $N=3$ they are a majority, fall outside Proposition~\ref{prop:vuln}(ii), and framed in one seed of ten.
 
 \subsection{When all sellers learn, framing is causal and favours the mean rule (H1)}
 
