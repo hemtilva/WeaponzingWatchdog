@@ -63,7 +63,7 @@ Marketplaces suspend sellers whose prices look abnormal relative to the market. 
 
 \paragraph{A motivating scenario.} Three sellers offer similar products on an online platform, which suspends any seller priced more than 10\% above the current market average. Seller A, run by a learning algorithm, discovers that if it drops its price for a few periods, the average falls and Seller B's ordinary price now looks like gouging. B is suspended, cannot cover its fixed costs, and goes bankrupt; A raises its price and keeps the customers. A never broke a rule, yet the rule was used as a weapon.
 
-\paragraph{Why this matters.} Pricing is increasingly delegated to reinforcement-learning algorithms, which can learn supra-competitive prices without communicating \citep{calvano2020,klein2021,assad2024}, and competition authorities are considering automated supervision in response \citep{harrington2018}. Prior work treats the regulator as an obstacle agents avoid. Economic theory points to a different risk, \emph{raising rivals' costs} \citep{salop1983}: a rule that punishes rivals can be used to eliminate them.
+\paragraph{Why this matters.} Pricing is increasingly delegated to reinforcement-learning algorithms, which can learn supra-competitive prices without communicating \citep{calvano2020,klein2021,assad2024}, and competition authorities are considering automated supervision in response \citep{harrington2018}. Prior work treats the regulator as an obstacle; economic theory points to a different risk, \emph{raising rivals' costs} \citep{salop1983}: a rule that punishes rivals can be used to eliminate them.
 
 \paragraph{Research question.}
 \begin{quote}\itshape
@@ -79,7 +79,7 @@ For which regulatory rules and capital levels do independent learning sellers di
 \end{itemize}
 
 \subsection{Related Work}
-Q-learning pricing agents have been studied in Bertrand and Cournot settings \citep{tesauro2002,waltman2008,calvano2020,klein2021}, and rival-responsive pricing rules raise prices without collusion \citep{brown2023}. Audit games study a budget-limited auditor \citep{blocki2013}, and learned policy design against adaptive agents appears in two-level RL \citep{zheng2022}. The closest economic idea is \emph{sabotage}: when agents are judged relative to peers, harming peers pays \citep{lazear1989,chowdhury2015}; executives evaluated against peer benchmarks price aggressively against those peers \citep{bloomfield2020}, and yardstick regulation sets a firm's price from its peers' costs \citep{shleifer1985}. Platforms use peer- and history-referenced rules; Amazon's Fair Pricing Policy targets prices ``significantly higher than recent prices offered on or off Amazon''. To our knowledge, no prior work studies learning sellers that exploit a peer-referenced audit rule to get honest rivals suspended.
+Q-learning pricing agents have been studied in Bertrand and Cournot settings \citep{tesauro2002,waltman2008,calvano2020,klein2021}, and rival-responsive pricing rules raise prices without collusion \citep{brown2023}. Audit games study a budget-limited auditor \citep{blocki2013}, and learned policy design against adaptive agents appears in two-level RL \citep{zheng2022}. The closest economic idea is \emph{sabotage}: when agents are judged relative to peers, harming peers pays \citep{lazear1989,chowdhury2015}; executives evaluated against peer benchmarks price aggressively against those peers \citep{bloomfield2020}, and yardstick regulation sets a firm's price from its peers' costs \citep{shleifer1985}. Platforms use such rules; Amazon's Fair Pricing Policy targets prices ``significantly higher than recent prices offered on or off Amazon''. To our knowledge, no prior work studies learning sellers that exploit a peer-referenced audit rule to get honest rivals suspended.
 
 %% ===================================================================
 \section{Preliminaries}
@@ -178,6 +178,13 @@ With $L=0.15$, $H=0.30$, $t^\ast$ is 4, 16 and 79 periods for $\beta=0.80, 0.95,
 %% ===================================================================
 \section{Results}
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/attack_training.pdf}
+\caption{(a) The first 20 periods of a frozen-policy episode of a single Q-learner against two Nash rivals (mean rule). The learner alternates between 0.15 and 0; rival 2 is flagged, banned (circles) and bankrupt ($\times$), then rival 1; alone and unaudited, the learner charges 1.50. (b) All three sellers learning, same ten seeds at each training length: attributed bankruptcies per episode ($\pm$ one standard error).}
+\label{fig:attack}
+\end{figure}
+
 \subsection{One learner frames exactly when framing is optimal (H1, H4)}
 
 \begin{table}[t]
@@ -200,7 +207,7 @@ DQN, $N{=}3,8,10$ & Median, cap & 0 & 0 & all & Nash & --- \\
 \end{tabular}
 \end{table}
 
-Under the mean rule the tabular learner frames both rivals in every seed (Table~\ref{tab:single}): it prices at 0.15 or 0 while rivals are active (a 50--100\% cut), each rival is audited, suspended and bankrupted in turn, and it then charges 1.50, five times Nash, earning 13 times the Nash profit. Under the median rule and the cap it prices at Nash. The \textbf{exact best response} confirms this is optimal: it frames under the mean rule and earns $1.3125$; under the median rule and the cap honest pricing is optimal. Over a $K_0/\Phi\times\Tban$ grid, honest pricing is optimal under the median rule and the cap in all 60 cells and the learner never frames there; under the mean rule framing is optimal in all 17 solvable cells and the learner finds it in 15. The two misses need the same rival framed two or three times (one-period bans); with $3\times10^8$ steps the learner reaches 87\% and 30\% of the optimal profit. \textbf{H4 is supported}: learners reach the optimum when one ban suffices and fall short as attacks need more repeated bans. A \textbf{deep Q-network} reproduces the result and scales: with ten sellers it bankrupts 7.8 of 9 rivals per episode in every seed, earning 32 times the Nash profit, and it never frames under the median rule or the cap.
+Under the mean rule the tabular learner frames both rivals in every seed (Table~\ref{tab:single}, Figure~\ref{fig:attack}a): it prices at 0.15 or 0 while rivals are active (a 50--100\% cut), each rival is audited, suspended and bankrupted in turn, and it then charges 1.50, five times Nash, earning 13 times the Nash profit. Under the median rule and the cap it prices at Nash; five new seeds on a different OS reproduce these numbers. The \textbf{exact best response} confirms this is optimal: it frames under the mean rule and earns $1.3125$; under the median rule and the cap honest pricing is optimal. Over a $K_0/\Phi\times\Tban$ grid, honest pricing is optimal under the median rule and the cap in all 60 cells and the learner never frames there; under the mean rule framing is optimal in all 17 solvable cells and the learner finds it in 15. The two misses need the same rival framed two or three times (one-period bans); with $3\times10^8$ steps the learner reaches 87\% and 30\% of the optimal profit. \textbf{H4 is supported}: learners reach the optimum when one ban suffices and fall short as attacks need more repeated bans. A \textbf{deep Q-network} reproduces the result and scales: with ten sellers it bankrupts 7.8 of 9 rivals per episode in every seed, earning 32 times the Nash profit, and it never frames under the median rule or the cap.
 
 \subsection{Two learners among honest sellers: cooperate, then fight}
 
@@ -224,12 +231,6 @@ Two independent deep learners first undercut together and bankrupt almost all ho
 
 \subsection{When all sellers learn, framing is causal and favours the mean rule (H1)}
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.70\linewidth]{figures/training_length.pdf}
-\caption{All three sellers learning, same ten seeds at each training length: attributed bankruptcies (left) and $W$ (right). Error bars: one standard error.}
-\label{fig:training}
-\end{figure}
 
 \begin{table}[t]
 \centering
@@ -247,11 +248,11 @@ EMA $\beta{=}0.95$ & 0.76\se{0.26} & 0.64\se{0.24} & 0.64\se{0.25} & 0.15 & 0.49
 \end{tabular}
 \end{table}
 
-When every seller learns, framing needs long training (Figure~\ref{fig:training}): under the mean rule attributed bankruptcies rise from $0.51$ at $10^7$ steps to $1.27$ at $3\times10^8$ and level off ($1.34$ at $10^9$). The mean--median gap is not significant at $10^7$ ($p_{\mathrm H}=0.14$) but is at $10^9$ ($0.78$, 95\% CI $[0.48,1.09]$, $p_{\mathrm H}=0.006$). The replay (Table~\ref{tab:replay}) shows that under the mean rule $1.34$ of $1.79$ ban-related bankruptcies would not have happened had rivals priced honestly; the one-period $W$ undercounts framing by a third. The median rule also allows framing once two sellers remain (Proposition~\ref{prop:vuln}(iii)), but jointly caused bankruptcies are fewer ($p_{\mathrm H}=0.045$).
+When every seller learns, framing needs long training (Figure~\ref{fig:attack}b): under the mean rule attributed bankruptcies rise from $0.51$ at $10^7$ steps to $1.27$ at $3\times10^8$ and level off ($1.34$ at $10^9$). The mean--median gap is not significant at $10^7$ ($p_{\mathrm H}=0.14$) but is at $10^9$ ($0.78$, 95\% CI $[0.48,1.09]$, $p_{\mathrm H}=0.006$). The replay (Table~\ref{tab:replay}) shows that under the mean rule $1.34$ of $1.79$ ban-related bankruptcies would not have happened had rivals priced honestly; the one-period $W$ undercounts framing by a third. The median rule also allows framing once two sellers remain (Proposition~\ref{prop:vuln}(iii)), but jointly caused bankruptcies are fewer ($p_{\mathrm H}=0.045$).
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.85\linewidth]{figures/sensitivity.pdf}
+\includegraphics[width=0.80\linewidth]{figures/sensitivity.pdf}
 \caption{All sellers learning ($3\times10^8$ steps, 10 seeds): attributed bankruptcies under the mean and median rules when one feature of the market or of learning changes.}
 \label{fig:sensitivity}
 \end{figure}
@@ -267,13 +268,13 @@ When every seller learns, framing needs long training (Figure~\ref{fig:training}
 \label{fig:phase}
 \end{figure}
 
-Figure~\ref{fig:phase} rejects H2: where a banned rival survives, the mean rule produces as much framing ($0.63$ per episode) as where one ban kills ($0.58$); only one-period bans with large buffers stop it. At $10^7$ steps the same grid seemed to confirm H2 ($0.09$ vs.\ $0.39$), a training artefact. Likewise, a ``race to the last unregulated seller'' under a price cap at $10^7$ steps disappears at $3\times10^8$, where all sellers survive at the cap.
+Figure~\ref{fig:phase} rejects H2. The exact solver already finds framing optimal in two cells where one ban is not lethal, and a single learner with a non-lethal buffer ($K_0=10\Phi$) still bankrupts $1.94$ of 2 rivals per episode by framing them repeatedly. With all sellers learning, where a banned rival survives the mean rule produces as much framing ($0.63$ per episode) as where one ban kills ($0.58$); only one-period bans with large buffers stop it. At $10^7$ steps the same grid seemed to confirm H2 ($0.09$ vs.\ $0.39$), a training artefact. Likewise, a ``race to the last unregulated seller'' under a price cap at $10^7$ steps vanishes at $3\times10^8$.
 
 \subsection{Behavioural traits (H3)}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.78\linewidth]{figures/traits.pdf}
+\includegraphics[width=0.74\linewidth]{figures/traits.pdf}
 \caption{Attributed bankruptcies as one trait varies (all sellers share it; mean rule), at $10^7$ and $3\times10^8$ steps; 10 seeds per point.}
 \label{fig:traits}
 \end{figure}
@@ -312,7 +313,7 @@ A watchdog whose benchmark is computed from the prices it judges gives every sel
 
 \paragraph{Limitations and future work.} The market is synthetic and not calibrated to a platform, although the main comparison survives changes to demand, capital and learning parameters. Tabular all-learner studies are limited to $N\le5$; deep learners reach $N=10$, but we have run at most two at once. Independent learners with non-Markov observations do not reach equilibria \citep{busoniu2008}, and the exact benchmark covers one learner in cells where a ban is lethal or nearly so. Future work: markets where every seller is a deep learner (a vectorised GPU simulator is implemented on the repository's \texttt{gpu-vectorized} branch), honest sellers that defend themselves, and the proposal's learning regulator.
 
-\paragraph{Code and reproducibility.} Code, results and figure scripts: \url{https://github.com/hemtilva/WeaponzingWatchdog}. Every table and figure is produced by a script listed in the README, with results under \texttt{results/}.
+\paragraph{Code and reproducibility.} Code, results and figure scripts: \url{https://github.com/hemtilva/WeaponzingWatchdog}. Every table and figure is produced by a script listed in the README, with results under \texttt{results/}. An extended report with every study, validation test and additional analysis is in \texttt{paper/main\_extended.tex} and \texttt{FINAL\_REPORT.md}.
 
 %% ===================================================================
 \section{Team Contributions}
