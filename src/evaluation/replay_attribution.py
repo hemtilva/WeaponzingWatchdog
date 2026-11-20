@@ -146,7 +146,7 @@ class ReplayEngine:
             nk = np.minimum(nk, self.cap)
         bankrupt = (st.capital > 0.0) & (nk <= 0.0)
         st.lag_idx, st.timers, st.capital = a, nt, nk
-        return {"sanction": sanction, "bankrupt": bankrupt, "prices": p, "active": act}
+        return {"sanction": sanction, "bankrupt": bankrupt, "prices": p, "active": act, "profits": pr}
 
     # ---------------------------------------------------------------- episodes
     def run_episode(self, us: np.ndarray, start: Optional[_State] = None, t0: int = 0, t1: Optional[int] = None,
