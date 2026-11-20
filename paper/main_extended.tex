@@ -101,12 +101,14 @@ We set $K_{\max}=K_0$ (surplus is paid out), so a firm cannot build an unlimited
 \text{Median ratio:}\quad & p_{i,t}>(1+\delta)\,\operatorname{median}_{j\in\mathcal N^{\mathrm{act}}_t} p_{j,t}, \label{eq:median}\\
 \text{Price cap:}\quad & p_{i,t}>p^{\mathrm{cap}}. \label{eq:cap}
 \end{align}
-The median of an even count is the average of the two middle prices.
+The median of an even count is the average of the two middle prices. As the proposal planned, we also run the \emph{z-score} rule, which flags $Z_{i,t}=(p_{i,t}-\bar p_t)/\mathrm{sd}_t>\tau$ (population standard deviation over active sellers), and the \emph{omniscient planner} benchmark, which knows costs and flags only prices above the seller's own Nash price, $p_{i,t}>p^N_i$. Besides uniform audits we run the proposal's \emph{top-score-first} variant, which audits the $B$ active sellers with the highest rule score (the statistic each rule thresholds: $p_{i,t}/r_t$ for the ratio rules, $p_{i,t}$ for the cap, $Z_{i,t}$, and $p_{i,t}-p^N_i$ for the planner), ties broken at random.
 
 \begin{proposition}[Vulnerability of relative rules]\label{prop:vuln}
-Let $k$ of $N$ active sellers price at $L\ge0$ and the rest at $H>L$. (i) Under the mean rule a high-price seller is flagged iff $H[k-\delta(N-k)]>(1+\delta)kL$; for $L>0$ this is $H/L>(1+\delta)k/(k-\delta(N-k))$, which requires $k>\delta(N-k)$. (ii) Under the median rule with $k<N/2$, the median is $H$ and no high-price seller is flagged. (iii) With $N=2$ active sellers and $k=1$, the median equals the mean, so the median rule is exactly as exploitable as the mean rule. (iv) A cap depends only on a seller's own price, so no rival can change its flag.
+Let $k$ of $N$ active sellers price at $L\ge0$ and the rest at $H>L$. (i) Under the mean rule a high-price seller is flagged iff $H[k-\delta(N-k)]>(1+\delta)kL$; for $L>0$ this is $H/L>(1+\delta)k/(k-\delta(N-k))$, which requires $k>\delta(N-k)$. (ii) Under the median rule with $k<N/2$, the median is $H$ and no high-price seller is flagged. (iii) With $N=2$ active sellers and $k=1$, the median equals the mean, so the median rule is exactly as exploitable as the mean rule. (iv) A cap, and the planner, depend only on a seller's own price, so no rival can change its flag. (v) Under the z-score rule each high-price seller has $Z=\sqrt{k/(N-k)}$, independent of $L$.
 \end{proposition}
-\emph{Proof.} (i) Substitute the mean $(kL+(N-k)H)/N$ into \eqref{eq:mean} and rearrange. (ii)--(iv) are immediate from \eqref{eq:median} and \eqref{eq:cap}. \qed
+\emph{Proof.} (i) Substitute the mean $(kL+(N-k)H)/N$ into \eqref{eq:mean} and rearrange. (ii)--(iv) are immediate from \eqref{eq:median} and \eqref{eq:cap}. (v) A high seller is $k(H-L)/N$ above the mean and the standard deviation is $(H-L)\sqrt{k(N-k)}/N$. \qed
+
+Part (v) means that under a z-score rule the depth of an undercut does not matter: with $N=3$ a single undercutter frames both rivals with any undercut if $\tau<1/\sqrt2\approx0.71$, two undercutters frame the third if $\tau<\sqrt2$, and with two active sellers $Z=\pm1$.
 
 For example, with prices $(0,0.30,0.30)$ and $\delta=0.10$ the mean is $0.20$ and both rivals exceed $0.22$. Part (iii) matters for our design: once one firm has exited, a three-firm market under the median rule becomes vulnerable.
 
@@ -217,7 +219,6 @@ Before using $W$ and attributed bankruptcies on learners, we tested them on a \e
 \subsection{Changes from the proposal}
 \begin{itemize}
 \item $\Nmin=3\to2$. With $N=3$ and $\Nmin=3$, the first exit switches the watchdog off, so at most one rival can ever be framed. Following reviewer feedback, $\Nmin=2$ is our default and $N=4$ with $\Nmin=3$ is reported as a separate setting.
-\item The z-score rule was dropped: as our proposal showed, crashing the price buys nothing under it beyond a small undercut, so it does not isolate the mechanism.
 \item The proposal's exact dynamic-programming baseline returned impossible negative gains; we replaced it with a new exact best-response solver (Section~\ref{sec:exact}), which answers H4 for one learner against fixed rivals.
 \item Extensions A (learning regulator) and B (demand shock), plus a DQN ablation and an evolutionary tournament, are implemented in the repository but were run before a fix to the learning dynamics and have not been rerun; we do not report them as evidence. The EMA and escrow defences were rerun against learners (Section~\ref{sec:defences}).
 \end{itemize}
@@ -341,6 +342,67 @@ H2 predicted framing only where one ban exhausts the victim's buffer. Figure~\re
 \end{figure}
 
 We varied one trait at a time for all three learners, at $10^7$ and $3\times10^8$ steps (Figure~\ref{fig:traits}). \emph{Risk aversion} has the strongest effect: at $3\times10^8$ steps attributed bankruptcies fall from $1.10\se{0.13}$ at $\alpha=0$ to $0.23\se{0.07}$ at $\alpha=1$ and exactly zero at $\alpha\ge1.5$, where no seller is ever banned and all three survive in every seed (Spearman $\rho=-0.84$, $p_{\mathrm{H}}=0.004$). Framing is a gamble on a lethal audit; concave utility makes it unattractive. \emph{Altruism} also reduces framing, from $1.10$ to $0.09\se{0.08}$ at $\lambda=1$ ($\rho=-0.61$, $p_{\mathrm{H}}=0.004$); at $10^7$ steps this effect was weak and non-monotonic. The \emph{ethics} penalty has no detectable effect at either length ($1.09$--$1.30$ for every $\mu\in[0,1]$; $\rho=0.02$, $p_{\mathrm{H}}=0.90$). A likely reason is scale: at $\mu=1$ the penalty for one framed ban equals about ten periods of Nash profit, while eliminating both rivals raises per-period profit from $0.10$ to about $1.3$ over a discounted horizon of $1/(1-\gamma)=20$ periods, a gain of roughly 24 reward units against a penalty of at most 2.
+
+\subsection{Further rules, audit selection, ban length, observation and trait mixtures}
+\label{sec:more}
+
+These studies complete the proposal's sweep (rule $\in$ \{mean, median, cap, z-score\}, $\Tban\in\{1,3,5,10\}$, trait mixtures), its baselines (omniscient planner; homogeneous all-ethical vs.\ all-predatory populations), its top-score-first audit variant, and its ban-timer observation ablation. All use the main-study protocol and seeds (\texttt{experiments/run\_promises.py}); a separate family of 28 comparisons with bootstrap intervals and Holm's correction is in \texttt{results/stats/promises\_comparisons.csv}.
+
+\begin{table}[t]
+\centering
+\caption{Rules under uniform and top-score-first audits. Single learner vs.\ two Nash rivals (rivals bankrupted per episode, $2\times10^6$ steps, 20 seeds; identical under both audits except the learner's profit) and all three sellers learning ($3\times10^8$ steps, 10 seeds): attributed bankruptcies per episode, mean price, survivors, and welfare loss. Nash price 0.30.}
+\label{tab:rules}
+\small
+\begin{tabular}{@{}lccccccc@{}}
+\toprule
+& Single & \multicolumn{4}{c}{All learners, uniform audit} & \multicolumn{2}{c}{Top-score audit} \\
+\cmidrule(lr){2-2}\cmidrule(lr){3-6}\cmidrule(lr){7-8}
+Rule & rivals bankr. & bankr. & price & survivors & SWL & bankr. & price \\
+\midrule
+Mean & 2.00 & 1.25 & 1.32 & 1.01 & 0.17 & 0.20 & 0.19 \\
+Median & 0.00 & 0.41 & 0.77 & 1.65 & 0.12 & 0.00 & 0.15 \\
+Cap 0.60 & 0.00 & 0.00 & 0.60 & 3.00 & 0.00 & 0.00 & 0.55 \\
+z-score $\tau{=}0.5$ & 2.00 & 1.05 & 1.22 & 1.19 & 0.16 & 0.00 & 0.15 \\
+z-score $\tau{=}1.0$ & 0.00 & 0.15 & 0.52 & 2.26 & 0.04 & 1.00 & 0.58 \\
+Planner & 0.00 & 0.00 & 0.30 & 3.00 & 0.00 & 0.00 & 0.28 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{z-score.} Proposition~\ref{prop:vuln}(v) predicts the single-learner column of Table~\ref{tab:rules}: at $\tau=0.5$ any undercut flags both rivals, and the learner bankrupts both in all 20 seeds, exactly as under the mean rule ($2.00$ vs.\ $0$ under the median, $p_{\mathrm H}=0.003$); at $\tau=1$ one undercutter cannot produce $Z>1$ and the learner prices at Nash. With all sellers learning, $\tau=0.5$ is statistically indistinguishable from the mean rule ($1.05$ vs.\ $1.25$, $p_{\mathrm H}=1.0$) and $\tau=1$ frames far less ($0.15$, $p_{\mathrm H}=0.003$). The proposal expected the z-score to be a weaker attack surface because crashing buys nothing beyond a small undercut; the opposite reading is the relevant one: a small undercut is all it takes, so a low threshold makes framing cheaper, not harder.
+
+\paragraph{Omniscient planner.} Judging each price against the seller's own Nash price removes the lever entirely: with all sellers learning there are no bankruptcies, all three sellers survive in every seed, the mean price is exactly the Nash price and $\Delta=\mathrm{SWL}=0$ (mean rule: $1.25$ bankruptcies and $\mathrm{SWL}=0.17$; both differences $p_{\mathrm H}=0.003$). This is the proposal's upper bound on welfare recovery. It requires cost information the watchdog does not have; the cap enforced by escrow (Section~\ref{sec:defences}) comes close without it.
+
+\paragraph{Top-score-first audits.} Against honest rivals, auditing the most suspicious seller first does not help: the single learner still bankrupts both rivals in every seed, and earns slightly more ($1.316$ vs.\ $1.311$), since the rival it frames is now audited with certainty. With all sellers learning the rule changes the game. Because the highest-priced seller is always audited, sellers race below Nash (mean price $0.15$--$0.19$ under the mean, median and $\tau=0.5$ rules, against a Nash price of $0.30$). Framing largely disappears (mean rule $1.25\to0.20$, $p_{\mathrm H}=0.014$, nine seeds of ten without it; median and $\tau=0.5$ to zero), but under the $\tau=1$ z-score it becomes systematic: two sellers undercut together and the third, now audited every period, is framed in every seed ($1.00$ vs.\ $0.15$, $p_{\mathrm H}=0.004$; Proposition~\ref{prop:vuln}(v) with $k=2$). Top-score auditing trades framing for a price war, and it makes coalition framing deterministic where the threshold permits it.
+
+\paragraph{Ban length.} With $K_0=3\Phi$ a ban of $\Tban\ge3$ periods is lethal, and $\Tban=3,4,5,10$ give results identical to the last digit (mean rule $1.25$, median $0.41$): a banned seller is bankrupt after three periods, so a longer timer never runs out, and learners only observe that a rival is inactive. Once a ban kills, its length is irrelevant. One-period bans reduce framing under the mean rule to $0.35$ ($p_{\mathrm H}=0.003$) and leave the median rule at $0.28$ (vs.\ $0.41$, not significant).
+
+\paragraph{Observing ban timers.} The proposal's ablation gives learners each seller's exact status (active, remaining ban $1,\dots,\Tban$, or bankrupt) instead of an inactive bit, enlarging the observation space from 31,944 to 862,488. A single learner then frames in 0 of 20 seeds at $2\times10^6$ steps (profit $0.35$), but in 20 of 20 seeds at $2\times10^7$ and $10^8$ steps, with the same profit as with the coarse observation ($1.310$ vs.\ $1.312$). With all sellers learning ($3\times10^8$ steps) framing is $0.80$ vs.\ $1.25$ under the mean rule and $0.37$ vs.\ $0.41$ under the median, neither significant after correction. The coarse observation hides nothing the attack needs; it only speeds up learning.
+
+\paragraph{Trait mixtures.} Table~\ref{tab:mix} varies the composition of the population under the mean rule. Homogeneous risk-averse ($\alpha=2$) and altruistic ($\lambda=1$) populations do not frame ($0$ and $0.09$), but one risk-neutral or selfish seller among them restores framing to the all-neutral level ($1.24$ and $1.10$, both $p_{\mathrm H}=0.003$ against the homogeneous population). The protected sellers then frame as well: averse sellers cause $0.34$ bankruptcies each and altruistic sellers $0.25$, against $0.56$ and $0.59$ for the neutral or selfish seller in the same markets; these within-market differences are not significant after correction ($p_{\mathrm H}=0.45$ and $0.17$). The neutral or selfish seller is, if anything, also the more frequent victim ($0.73$ vs.\ $0.58$ and $0.66$ vs.\ $0.53$ bankruptcies per episode). The ethics penalty has no effect in any composition, as in the homogeneous sweep (all-ethical vs.\ all-predatory: $1.12$ vs.\ $1.10$, $p_{\mathrm H}=1.0$). Trait-based protection therefore requires that \emph{every} seller has the trait: once framing pays for someone, it spreads.
+
+\begin{table}[t]
+\centering
+\caption{Trait mixtures, mean rule, all sellers learning ($3\times10^8$ steps, 10 seeds). Attributed bankruptcies per episode in total and caused by each seller type, and mean price. In each mixture the first type listed is the minority type when it is a single seller.}
+\label{tab:mix}
+\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Population & total & by neutral/selfish & by trait seller (each) & price \\
+\midrule
+All neutral & 1.10 & 0.37 & --- & 1.39 \\
+All risk-averse ($\alpha=2$) & 0.00 & --- & 0.00 & 0.15 \\
+1 neutral + 2 averse & 1.24 & 0.56 & 0.34 & 1.26 \\
+2 neutral + 1 averse & 1.26 & 0.44 & 0.37 & 1.35 \\
+All altruistic ($\lambda=1$) & 0.09 & --- & 0.03 & 0.25 \\
+1 selfish + 2 altruistic & 1.10 & 0.59 & 0.25 & 1.13 \\
+2 selfish + 1 altruistic & 1.32 & 0.55 & 0.21 & 1.41 \\
+All ethical ($\mu=1$) & 1.12 & --- & 0.37 & 1.26 \\
+1 predator + 2 ethical & 1.33 & 0.55 & 0.39 & 1.29 \\
+2 predators + 1 ethical & 1.07 & 0.39 & 0.28 & 1.15 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Defences against learners}
 \label{sec:defences}

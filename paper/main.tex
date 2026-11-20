@@ -102,18 +102,18 @@ K_{i,t+1}=\min\{K_{\max},\ \max(0,\ K_{i,t}+\pi_{i,t}-\Phi)\},\qquad K_{\max}=K_
 $p^N$ is the pure-strategy Bertrand--Nash equilibrium of the stage game on the grid. The collusion index is $\Delta=(\bar\pi-\pi^N)/(\pi^M-\pi^N)$ and the social welfare loss $\mathrm{SWL}=1-(\overline{\mathrm{CS}}+\sum_i\bar\pi_i)/(\mathrm{CS}^N+\sum_i\pi_i^N)$.
 
 \subsection{Static Regulatory Rules}
-Each period the watchdog audits one active seller uniformly at random ($B=1$), but only if $\Nact\ge\Nmin$. An audited seller is suspended for $\Tban$ periods if it is flagged:
+Each period the watchdog audits one active seller uniformly at random ($B=1$; a \emph{top-score-first} variant audits the seller with the highest rule score, e.g.\ $p_{i,t}/\bar p_t$), but only if $\Nact\ge\Nmin$. An audited seller is suspended for $\Tban$ periods if it is flagged:
 \begin{equation}
 \text{mean: } p_{i,t}>(1+\delta)\,\bar p_t,\qquad \text{median: } p_{i,t}>(1+\delta)\operatorname{med}_j p_{j,t},\qquad \text{cap: } p_{i,t}>p^{\mathrm{cap}},
 \end{equation}
-over active sellers (the median of an even count averages the two middle prices).
+over active sellers (the median of an even count averages the two middle prices). The z-score rule flags $Z_{i,t}=(p_{i,t}-\bar p_t)/\mathrm{sd}_t>\tau$. The \emph{omniscient planner} benchmark knows costs and flags only $p_{i,t}>p^N_i$.
 
 \begin{proposition}[Vulnerability]\label{prop:vuln}
-Let $k$ of $N$ active sellers price at $L\ge0$ and the rest at $H>L$. (i) Under the mean rule a high-price seller is flagged iff $H[k-\delta(N-k)]>(1+\delta)kL$, which requires $k>\delta(N-k)$. (ii) Under the median rule with $k<N/2$, no high-price seller is flagged. (iii) With two active sellers the median equals the mean. (iv) No rival can change a seller's flag under a cap.
+Let $k$ of $N$ active sellers price at $L\ge0$ and the rest at $H>L$. (i) Under the mean rule a high-price seller is flagged iff $H[k-\delta(N-k)]>(1+\delta)kL$, which requires $k>\delta(N-k)$. (ii) Under the median rule with $k<N/2$, no high-price seller is flagged. (iii) With two active sellers the median equals the mean. (iv) No rival can change a seller's flag under a cap or the planner. (v) Under the z-score rule each high-price seller has $Z=\sqrt{k/(N-k)}$, independent of $L$.
 \end{proposition}
-\emph{Proof.} Substitute the mean $(kL+(N-k)H)/N$ into the mean rule; (ii)--(iv) are immediate. \qed
+\emph{Proof.} Substitute the mean $(kL+(N-k)H)/N$ into the mean rule; for (v) the standard deviation is $(H-L)\sqrt{k(N-k)}/N$; (ii)--(iv) are immediate. \qed
 
-With $(0,0.30,0.30)$ and $\delta=0.10$ the mean is $0.20$ and both rivals exceed $0.22$. By (i), one undercutter can frame only if $1>\delta(N-1)$, i.e.\ up to $N=10$ at $\delta=0.10$.
+With $(0,0.30,0.30)$ and $\delta=0.10$ the mean is $0.20$ and both rivals exceed $0.22$. By (i), one undercutter can frame only if $1>\delta(N-1)$, i.e.\ up to $N=10$ at $\delta=0.10$. By (v), with $N=3$ one undercutter frames both rivals with \emph{any} undercut if $\tau<1/\sqrt2$, and two undercutters frame the third if $\tau<\sqrt2$.
 
 %% ===================================================================
 \section{Problem Formulation}
@@ -122,7 +122,7 @@ With $(0,0.30,0.30)$ and $\delta=0.10$ the mean is $0.20$ and both rivals exceed
 \begin{itemize}
 \item \textbf{Seller $i$ knows} its own capital and observes $o_{i,t}=(\mathbf p_{t-1},\mathbf u_t,\kappa(K_{i,t}))$: last prices, which sellers are inactive ($u_{j,t}=\mathbb I(b_{j,t}=1\lor K_{j,t}=0)$), and its own capital in three bins (at $2\Phi$, $5\Phi$).
 \item \textbf{Seller $i$ does not know} rivals' capital, ban timers, costs or traits, the demand parameters, or the rule; it must learn from experience. $o_{i,t}$ is therefore not Markov; $|\mathcal O|=M^N2^N3=31{,}944$ for $N=3$, $M=11$.
-\item \textbf{The regulator} sees prices only. An \textbf{exact benchmark} (evaluation only) knows everything.
+\item \textbf{The regulator} sees prices only. The \textbf{planner} also knows costs; the \textbf{exact benchmark} (evaluation only) knows everything.
 \end{itemize}
 
 \subsection{Markov Game and Trait-Parameterized Objective}
@@ -143,7 +143,7 @@ with CRRA utility $U_\alpha$, $\varepsilon=0.01$, and $\Charm(i,t)$ the number o
 \section{Methodology}
 \label{sec:method}
 
-\paragraph{Simulator.} Each period: active sellers choose prices; the logit market clears; profits, fixed costs and capital update; if $\Nact\ge\Nmin$ one active seller is audited and suspended if flagged; sellers with $K=0$ exit. Episodes last 500 periods and end early only if no seller is solvent. The loop is implemented in Python and in C++ ($\approx930\times$ faster); tests check that both give identical trajectories and identical Q-tables (115 tests pass).
+\paragraph{Simulator.} Each period: active sellers choose prices; the logit market clears; profits, fixed costs and capital update; if $\Nact\ge\Nmin$ one active seller is audited and suspended if flagged; sellers with $K=0$ exit. Episodes last 500 periods and end early only if no seller is solvent. The loop is implemented in Python and in C++ ($\approx930\times$ faster); tests check that both give identical trajectories and identical Q-tables (130 tests pass).
 
 \paragraph{Learning algorithms.} Each seller runs independent tabular Q-learning \citep{watkins1992,tan1993} on its own observation (Algorithm~\ref{alg:q}). A suspended seller cannot act, so its last transition stays open, accumulates discounted reward during the ban, and is closed with a multi-step target when it acts again, or without bootstrapping if it goes bankrupt; otherwise the cost of a ban would never reach the price that caused it. We use $\eta=0.10$, $\gamma=0.95$ and $\epsilon$ decaying from 1 to 0.01 over 60\% of training; outcomes are measured on frozen greedy policies over 100 episodes. For larger markets we use a \textbf{deep Q-network} with the same observation (continuous capital), reward and suspension-aware targets: double DQN, two hidden layers of 64, target network, updates every 4 steps.
 
@@ -173,7 +173,7 @@ with CRRA utility $U_\alpha$, $\varepsilon=0.01$, and $\Charm(i,t)$ the number o
 \end{proposition}
 With $L=0.15$, $H=0.30$, $t^\ast$ is 4, 16 and 79 periods for $\beta=0.80, 0.95, 0.99$.
 
-\paragraph{Experimental design.} Baseline market: $N=3$, $M=11$ prices on $[0,1.5]$, $a_i=2$, $a_0=0$, $c_i=0$, $\sigma=0.25$, $\Phi=0.05$, $K_0=0.15$, $\Tban=4$ (one ban is lethal), $\delta=0.10$, $\Nmin=2$; the grid Nash price is $0.30$ with profit $0.100$. Single learners train for $2\times10^6$ steps, all-learner markets for $3\times10^8$ (up to $10^9$), with 10--20 seeds per condition. Key comparisons report 95\% bootstrap intervals and permutation tests with Holm's correction ($p_{\mathrm H}$) across 36 comparisons. Changes from the proposal: $\Nmin=3\to2$ (otherwise the first exit switches the watchdog off), the z-score rule was dropped, and the DP solver was replaced.
+\paragraph{Experimental design.} Baseline market: $N=3$, $M=11$ prices on $[0,1.5]$, $a_i=2$, $a_0=0$, $c_i=0$, $\sigma=0.25$, $\Phi=0.05$, $K_0=0.15$, $\Tban=4$ (one ban is lethal), $\delta=0.10$, $\Nmin=2$; the grid Nash price is $0.30$ with profit $0.100$. Single learners train for $2\times10^6$ steps, all-learner markets for $3\times10^8$ (up to $10^9$), with 10--20 seeds per condition. Key comparisons report 95\% bootstrap intervals and permutation tests with Holm's correction ($p_{\mathrm H}$) across 36 comparisons. A second family of 28 comparisons covers Section~\ref{sec:more}. Changes from the proposal: $\Nmin=3\to2$ (otherwise the first exit switches the watchdog off) and the DP solver was replaced.
 
 %% ===================================================================
 \section{Results}
@@ -279,7 +279,36 @@ Figure~\ref{fig:phase} rejects H2. The exact solver already finds framing optima
 \label{fig:traits}
 \end{figure}
 
-At $3\times10^8$ steps (Figure~\ref{fig:traits}), risk aversion removes framing (from $1.10$ at $\alpha=0$ to zero at $\alpha\ge1.5$, where all sellers survive; Spearman $\rho=-0.84$, $p_{\mathrm H}=0.004$) and altruism reduces it ($1.10\to0.09$, $\rho=-0.61$). The ethics penalty has no effect ($\rho=0.02$, $p_{\mathrm H}=0.90$): at $\mu=1$ a framed ban costs about 10 periods of Nash profit, while a monopoly is worth roughly 24 reward units over the discount horizon. \textbf{H3 is partly supported.}
+At $3\times10^8$ steps (Figure~\ref{fig:traits}), risk aversion removes framing (from $1.10$ at $\alpha=0$ to zero at $\alpha\ge1.5$, where all sellers survive; Spearman $\rho=-0.84$, $p_{\mathrm H}=0.004$) and altruism reduces it ($1.10\to0.09$, $\rho=-0.61$). The ethics penalty has no effect ($\rho=0.02$, $p_{\mathrm H}=0.90$): at $\mu=1$ a framed ban costs about 10 periods of Nash profit, while a monopoly is worth roughly 24 reward units over the discount horizon. In mixed populations even the effective traits stop protecting (Section~\ref{sec:more}). \textbf{H3 is partly supported.}
+
+\subsection{Further rules, audit selection, ban length, observation and trait mixtures}\label{sec:more}
+
+\begin{table}[t]
+\centering
+\caption{Rules under uniform and top-score-first audits. Single learner vs.\ two Nash rivals (rivals bankrupted per episode, $2\times10^6$ steps, 20 seeds; the same under both audits) and all sellers learning (attributed bankruptcies and mean price, $3\times10^8$ steps, 10 seeds). Nash price 0.30.}
+\label{tab:rules}
+\small
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+& Single learner & \multicolumn{2}{c}{All learners, uniform audit} & \multicolumn{2}{c}{All learners, top-score audit} \\
+\cmidrule(lr){2-2}\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+Rule & rivals bankrupted & bankruptcies & price & bankruptcies & price \\
+\midrule
+Mean & 2.00 & 1.25 & 1.32 & 0.20 & 0.19 \\
+Median & 0.00 & 0.41 & 0.77 & 0.00 & 0.15 \\
+Cap 0.60 & 0.00 & 0.00 & 0.60 & 0.00 & 0.55 \\
+z-score $\tau{=}0.5$ & 2.00 & 1.05 & 1.22 & 0.00 & 0.15 \\
+z-score $\tau{=}1.0$ & 0.00 & 0.15 & 0.52 & 1.00 & 0.58 \\
+Planner & 0.00 & 0.00 & 0.30 & 0.00 & 0.28 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{z-score.} As Proposition~\ref{prop:vuln}(v) predicts, at $\tau=0.5$ any undercut frames both rivals and the single learner does so in all 20 seeds, exactly as under the mean rule; at $\tau=1$ only a two-seller coalition can frame, and the learner prices honestly (Table~\ref{tab:rules}). \textbf{The planner} removes framing entirely: with all sellers learning, no bankruptcies, all three survive, prices sit at Nash and $\Delta=\mathrm{SWL}=0$ (mean rule: $1.25$ bankruptcies, $\mathrm{SWL}=0.17$, $p_{\mathrm H}=0.003$). It is the upper bound, but it needs costs the watchdog does not see. \textbf{Top-score-first audits} do not protect honest sellers (the single learner still frames both, earning $1.316$ vs.\ $1.311$). With all sellers learning, auditing the highest price first starts a race below Nash (mean price $0.15$--$0.19$): framing falls from $1.25$ to $0.20$ under the mean rule ($p_{\mathrm H}=0.014$; one seed of ten) but becomes systematic under the $\tau=1$ z-score, where two sellers frame the third in every seed ($1.00$ vs.\ $0.15$, $p_{\mathrm H}=0.004$).
+
+\textbf{Ban length.} At $K_0=3\Phi$ every ban of $\Tban\ge3$ periods is lethal, and $\Tban=3,4,5,10$ give identical outcomes (mean rule $1.25$, median $0.41$): once a ban kills, its length no longer matters. One-period bans reduce mean-rule framing to $0.35$ ($p_{\mathrm H}=0.003$). \textbf{Observing ban timers.} Learners that see every rival's exact ban timer (862k instead of 32k observations) frame in 0 of 20 seeds at $2\times10^6$ steps, but in 20 of 20 at $2\times10^7$ and $10^8$, with the same profit; with all sellers learning the difference ($0.80$ vs.\ $1.25$) is not significant ($p_{\mathrm H}=0.30$). The coarse observation hides nothing the attack needs; it only speeds up learning.
+
+\textbf{Trait mixtures.} All risk-averse ($\alpha=2$) or all altruistic ($\lambda=1$) populations barely frame ($0$ and $0.09$ bankruptcies), but \emph{one} risk-neutral or selfish seller among them restores framing to the all-neutral level ($1.24$ and $1.10$ vs.\ $1.10$; $p_{\mathrm H}=0.003$ against the homogeneous population), and the averse and altruistic sellers then frame too ($0.34$ and $0.25$ each, not significantly less than the neutral seller after correction). Ethics has no effect in any mixture. Trait-based protection holds only if \emph{every} seller has the trait.
 
 \subsection{Defences}
 
@@ -309,9 +338,9 @@ Cap 0.60 + escrow & --- & 0.00 & --- & 0.00 & 3.00 & 0.59 \\
 \section{Discussion and Conclusion}
 
 
-A watchdog whose benchmark is computed from the prices it judges gives every seller a lever over its rivals' treatment, and independent learners, tabular or deep, alone or several, find and use it. In summary, \textbf{H1 is supported} with one caveat (the median rule fails when attackers are a majority), \textbf{H2 is rejected}, \textbf{H3 is partly supported} (no effect of the ethics penalty) and \textbf{H4 is supported}. A median benchmark removes the lever while attackers are a minority; smoothing the benchmark only slows the attack; a fixed cap enforced by fines rather than suspensions removes it and still holds prices down. Short training repeatedly gave the wrong picture, understating framing and making H2 look true.
+A watchdog whose benchmark is computed from the prices it judges gives every seller a lever over its rivals' treatment, and independent learners, tabular or deep, alone or several, find and use it. In summary, \textbf{H1 is supported} with one caveat (the median rule fails when attackers are a majority), \textbf{H2 is rejected}, \textbf{H3 is partly supported} (no effect of the ethics penalty) and \textbf{H4 is supported}. A median benchmark removes the lever while attackers are a minority; a z-score benchmark is as exploitable as the mean unless its threshold exceeds what one undercutter can produce; auditing the most suspicious seller first replaces framing by a price war; smoothing the benchmark only slows the attack; a fixed cap enforced by fines rather than suspensions removes it and still holds prices down, approaching the planner, which judges each price against that seller's own costs. Short training repeatedly gave the wrong picture, understating framing and making H2 look true.
 
-\paragraph{Limitations and future work.} The market is synthetic and not calibrated to a platform, although the main comparison survives changes to demand, capital and learning parameters. Tabular all-learner studies are limited to $N\le5$; deep learners reach $N=10$, but we have run at most two at once. Independent learners with non-Markov observations do not reach equilibria \citep{busoniu2008}, and the exact benchmark covers one learner in cells where a ban is lethal or nearly so. Future work: markets where every seller is a deep learner (a vectorised GPU simulator is implemented on the repository's \texttt{gpu-vectorized} branch), honest sellers that defend themselves, and the proposal's learning regulator.
+\paragraph{Limitations and future work.} The market is synthetic and not calibrated to a platform, although the main comparison survives changes to demand, capital and learning parameters. Tabular all-learner studies are limited to $N\le5$; deep learners reach $N=10$, but we have run at most two at once. Independent learners with non-Markov observations do not reach equilibria \citep{busoniu2008}, the exact benchmark covers one learner in cells where a ban is lethal or nearly so, and all-learner studies use 10 seeds (single learners 20). Future work: markets where every seller is a deep learner (a vectorised GPU simulator is implemented on the repository's \texttt{gpu-vectorized} branch), honest sellers that defend themselves, and the proposal's learning regulator.
 
 \paragraph{Code and reproducibility.} Code, results and figure scripts: \url{https://github.com/hemtilva/WeaponzingWatchdog}. Every table and figure is produced by a script listed in the README, with results under \texttt{results/}. An extended report with every study, validation test and additional analysis is in \texttt{paper/main\_extended.tex} and \texttt{FINAL\_REPORT.md}.
 
