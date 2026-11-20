@@ -65,6 +65,26 @@ Each trait varied for all three learners, at 10M and 300M training steps (10 see
 
 A time-smoothed (EMA) reference slows framing down but does not stop it: a scripted attacker that patiently holds 0.15 bankrupts both rivals under every EMA setting, a single learner trained for 300M steps finds the 4-period attack at β = 0.80 in all 20 seeds, and the replay shows most remaining exits under EMA are framing. Replacing suspensions with escrowed fines (profit above Nash is removed, nobody is suspended) eliminates framing everywhere, but on a mean rule prices then settle at about 0.69, well above Nash (0.30). **Escrow on a fixed price cap has no such catch:** with all sellers learning, nobody is sanctioned or bankrupted, all firms survive, and prices sit at the cap (0.59). That is the design the results point to: *a reference no seller can move, enforced by fines rather than suspensions.* Details: `results/defences/`, `results/replay_attribution/`.
 
+### 8. Remaining proposal items: z-score, omniscient planner, top-score audits, ban length, timer observation, trait mixtures
+
+All from `python experiments/run_promises.py all` (main-study protocol and seeds; tests in `scripts/promises_report.py`, `results/stats/promises_comparisons.csv`).
+
+| Rule | Single learner: rivals bankrupted | All learners, uniform audit: bankruptcies / price | All learners, top-score audit: bankruptcies / price |
+| --- | --- | --- | --- |
+| Mean | 2.00 | 1.25 / 1.32 | 0.20 / 0.19 |
+| Median | 0.00 | 0.41 / 0.77 | 0.00 / 0.15 |
+| Cap 0.60 | 0.00 | 0.00 / 0.60 | 0.00 / 0.55 |
+| z-score τ = 0.5 | 2.00 | 1.05 / 1.22 | 0.00 / 0.15 |
+| z-score τ = 1.0 | 0.00 | 0.15 / 0.52 | 1.00 / 0.58 |
+| Omniscient planner | 0.00 | 0.00 / 0.30 | 0.00 / 0.28 |
+
+- **z-score:** each high-priced seller has z = √(k/(N−k)) whatever the undercut depth, so at τ = 0.5 any undercut frames both rivals (single learner: 20/20 seeds, like the mean rule). At τ = 1 one undercutter cannot frame, but two can frame the third.
+- **Omniscient planner** (flags only prices above the seller's own Nash price): no framing, all sellers survive, prices exactly at Nash, welfare loss 0. This is the upper bound, but it needs cost information.
+- **Top-score-first audits** do not protect honest sellers from a single learner. With all sellers learning they start a race below Nash (prices 0.15–0.19). They remove most framing, but make coalition framing systematic under the τ = 1 z-score (1.00 per episode, every seed).
+- **Ban length:** at K0 = 3Φ, T_ban = 3, 4, 5 and 10 give identical results; once a ban is lethal its length no longer matters. One-period bans cut mean-rule framing from 1.25 to 0.35.
+- **Observing exact ban timers** (862k instead of 32k observations): the single learner frames in 0/20 seeds at 2M steps but 20/20 at 20M and 100M, with the same profit. The coarse observation hides nothing the attack needs.
+- **Trait mixtures:** an all risk-averse or all altruistic population barely frames (0 and 0.09), but one risk-neutral or selfish seller among them restores framing to the all-neutral level (1.24 and 1.10). The protected sellers then frame too. Ethics has no effect in any mixture.
+
 ### A correction: the cap "race to the last seller" is a learning-phase effect
 
 ![Cap trace](paper/figures/cap_trace.png)
@@ -104,7 +124,7 @@ A banned firm cannot generate sales ($\pi_i = 0$) but remains liable for fixed c
 
 ## Regulatory Rules & Analytical Exploitability
 
-At the conclusion of period $t$, the regulator selects an audit sample $\text{Aud}_t \subseteq \mathcal{N}^{\text{act}}_t$ of budget size $|\text{Aud}_t| = B$ uniformly at random. Audits happen only while $N_{\text{act},t} \ge N_{\min}$ (default $N_{\min} = 2$; the proposal used 3, but with $N = 3$ that switches the watchdog off after the first exit). Flags $F_{i,t} \in \{0, 1\}$ are evaluated according to one of the following static rules:
+At the conclusion of period $t$, the regulator selects an audit sample $\text{Aud}_t \subseteq \mathcal{N}^{\text{act}}_t$ of budget size $|\text{Aud}_t| = B$ uniformly at random (or, with `audit_mode="top"`, the $B$ sellers with the highest rule score, ties at random). Audits happen only while $N_{\text{act},t} \ge N_{\min}$ (default $N_{\min} = 2$; the proposal used 3, but with $N = 3$ that switches the watchdog off after the first exit). Flags $F_{i,t} \in \{0, 1\}$ are evaluated according to one of the following static rules:
 
 1. **Mean-Ratio Rule:**
    $$r_t = \frac{1}{N_{\text{act},t}} \sum_{j \in \mathcal{N}^{\text{act}}_t} p_{j,t}, \qquad F_{i,t} = \mathbb{I}(p_{i,t} > (1 + \delta) r_t)$$
@@ -114,6 +134,8 @@ At the conclusion of period $t$, the regulator selects an audit sample $\text{Au
    $$F_{i,t} = \mathbb{I}(p_{i,t} > p^{\text{cap}})$$
 4. **Z-Score Rule (Normalized Reference):**
    $$Z_{i,t} = \frac{p_{i,t} - \bar{p}_t}{\operatorname{std}(\mathbf{p}_t)}, \qquad F_{i,t} = \mathbb{I}(Z_{i,t} > \tau)$$
+
+5. **Omniscient planner (benchmark):** knows costs and flags only prices above the seller's own Nash price, $F_{i,t} = \mathbb{I}(p_{i,t} > p^N_i)$ (`RuleType.PLANNER`).
 
 If firm $i \in \text{Aud}_t$ and $F_{i,t} = 1$, the ban timer updates to $\tau_{i,t+1} = T_{\text{ban}}$; otherwise, $\tau_{i,t+1} = \max\{\tau_{i,t} - 1, 0\}$.
 
@@ -125,7 +147,7 @@ Suppose $k$ active firms post price $L$, while the remaining $N - k$ active firm
   For a single undercutter ($k = 1$), this reduces to $\delta < \frac{1}{N-1}$ and $\frac{H}{L} > \frac{1+\delta}{1 - \delta(N-1)}$. A solitary actor can manipulate the mean benchmark whenever the threshold $\delta$ is sufficiently tight.
 * **Median-Ratio Rule:** If $k < N/2$, the median price remains $H$. Thus, no high-priced firm can be flagged by unilateral undercutting; weaponization requires a collusive bloc of at least $\lceil N/2 \rceil$ agents. **Caveat:** the median of an even count is the average of the two middle prices, so with exactly two active firms the median equals the mean and the median rule is as exploitable as the mean rule. With $N = 3$ and $N_{\min} = 2$ this applies after the first exit.
 * **Price Cap:** Absolute caps do not depend on peer prices and cannot be manipulated via undercutting.
-* **Z-Score Rule:** The standardized score for high-priced firms evaluates to $Z = \sqrt{k / (N - k)}$, independent of $L$. Crashing prices toward marginal cost yields no leverage over the metric beyond an infinitesimal undercut.
+* **Z-Score Rule:** The standardized score for high-priced firms evaluates to $Z = \sqrt{k / (N - k)}$, independent of $L$. Crashing prices toward marginal cost yields no leverage over the metric beyond an infinitesimal undercut, so *any* undercut frames when τ < √(k/(N−k)). With N = 3 one undercutter frames both rivals if τ < 0.71, and two frame the third if τ < 1.41.
 
 ---
 
@@ -184,7 +206,7 @@ where $\mathbf{p}_t^{(i \to N)} = (p_{1,t}, \dots, p_{i-1,t}, p_i^N, p_{i+1,t}, 
 | --- | --- | --- |
 | **H1** Mean rule exploitable by one undercutter; median and cap not | **Supported, with a caveat.** A single learner frames rivals under the mean rule in all 20 seeds and never under median or cap. With all sellers learning, the mean rule is consistently more exploitable, but the median is not immune once two firms remain. | `results/Krishs-MacBook-Air/all/study_single.csv`, `results/training_length/`, `results/sensitivity/` |
 | **H2** Framing pays only when one ban is lethal | **Rejected.** At 300M steps framing is as frequent where a banned rival survives (0.63/episode) as where one ban kills (0.58); the exact solver finds framing optimal in two non-lethal cells too. | Phase diagram, `results/long_300M/`, `results/best_response/` |
-| **H3** Framing falls with ethics, altruism, risk aversion | **Partly supported.** At 300M steps risk aversion (zero framing at α ≥ 1.5) and altruism (1.10 → 0.09) reduce framing; an ethics penalty up to μ = 1 has no effect. | Traits figure, `results/traits_300M/` |
+| **H3** Framing falls with ethics, altruism, risk aversion | **Partly supported.** At 300M steps risk aversion (zero framing at α ≥ 1.5) and altruism (1.10 → 0.09) reduce framing; an ethics penalty up to μ = 1 has no effect. In mixed populations one risk-neutral or selfish seller restores framing. | Traits figure, `results/traits_300M/`, `results/promises/mixtures.csv` |
 | **New** Two learners | **Cooperate, then fight.** Two DQN learners jointly frame the honest sellers, then each other (29/30 seeds); the median rule protects while they are a minority. | `results/dqn_multi/` |
 | **New** Defences | **EMA delays; escrow removes; cap + escrow removes and holds prices down.** EMA: learners find a 4-period attack at β = 0.80; mean + escrow: no framing but prices ≈ 0.69; cap + escrow: no framing, prices at the cap (0.59). | `results/defences/` |
 | **H4** Learners find framing only where exact analysis says it is optimal | **Supported.** Learners reach the exact optimum when one ban suffices (15 of 17 solvable cells) and fall short as attacks need more repeated bans (87% and 30% of optimal profit with 2 and 3 bans, at 300M steps). | `results/best_response/`, `results/followups/` |
@@ -199,6 +221,7 @@ where $\mathbf{p}_t^{(i \to N)} = (p_{1,t}, \dots, p_{i-1,t}, p_i^N, p_{i+1,t}, 
 | Rule comparison, robustness, traits, N = 4 | Done (`experiments/run_study.py`, `experiments/check_training_length.py`). |
 | Phase diagram over K0/Φ × T_ban (`run_study.py h2`) | Done at 300M steps (`results/long_300M/`). |
 | EMA and escrow defences | Done against learners (`experiments/run_defences.py`, `experiments/run_escrow_cap.py`). |
+| z-score rule, omniscient planner, top-score-first audits, T_ban ∈ {1, 3, 5, 10}, ban-timer observation ablation, trait mixtures | Done (`experiments/run_promises.py`, `results/promises/`). |
 | Deep RL | Single DQN seller (N = 3, 8, 10) and two DQN sellers (N = 3, 5, 8) done. Markets where every seller is a deep learner need the vectorised GPU code on branch `gpu-vectorized` (see `GPU_SETUP.md` there). |
 | Extension A (learning regulator), Extension B (demand shock), DQN, tournament | Implemented, but last run before the fix to the learning dynamics. Their figures are in `plots/legacy/` and are **not** current results. |
 
@@ -353,10 +376,11 @@ Every experiment should start from a market where weaponization is possible at a
 | Two deep learners among Nash sellers | `python experiments/run_dqn_multi.py --num-firms N --tag full` for N = 3, 5, 8 | `results/dqn_multi/` |
 | Price cap with escrow | `python experiments/run_escrow_cap.py all` and `single` | `results/defences/escrow_cap_*.csv` |
 | Attack trace (paper Figure 1a) | `python experiments/trace_single_learner.py` | `results/single_trace/trace.csv` |
-| Confidence intervals and tests | `python scripts/stats_report.py` | `results/stats/key_comparisons.csv` |
+| z-score, planner, top-score audits, T_ban, timer observation, trait mixtures | `python experiments/run_promises.py all`, then `timerlen` | `results/promises/` |
+| Confidence intervals and tests | `python scripts/stats_report.py`; `python scripts/promises_report.py` | `results/stats/key_comparisons.csv`, `results/stats/promises_comparisons.csv` |
 | All figures | `python scripts/make_paper_figures.py` | `paper/figures/` |
 | C++ vs Python speed-up (~930×) | `python scripts/benchmark_backends.py` | printed |
-| Metric, solver and replay validation | `pytest tests/test_scripted_attacker.py tests/test_framing_mechanics.py tests/test_best_response.py tests/test_replay_attribution.py tests/test_dqn_single.py tests/test_dqn_multi.py` | test output |
+| Metric, solver and replay validation | `pytest tests/test_scripted_attacker.py tests/test_framing_mechanics.py tests/test_best_response.py tests/test_replay_attribution.py tests/test_dqn_single.py tests/test_dqn_multi.py tests/test_audit_planner_timers.py` | test output |
 
 `run_study.py` writes its CSV to `data/` (gitignored); the committed copies live under `results/`. Training uses the native C++ loop; `tests/test_native_sim.py` checks that it reproduces the Python reference implementation exactly, including Q-tables.
 

@@ -276,6 +276,13 @@ These results are written up in full in [`paper/main.tex`](paper/main.tex); ever
 - **Deep Q-network at larger N** ([n8.csv](results/dqn_single/n8.csv), [n10.csv](results/dqn_single/n10.csv)). With N = 8 and N = 10 (Φ = 0.02, K0 = 0.06), a single DQN seller bankrupts 6.33 of 7 and 7.79 of 9 rivals per episode under the mean rule in every seed (28× and 32× the Nash profit) and never frames under the median rule.
 - **Two deep learners among Nash sellers** ([dqn_multi.py](src/agents/dqn_multi.py), [results](results/dqn_multi/)). With one, three or six honest sellers (N = 3, 5, 8; 10 seeds each), the two learners jointly bankrupt almost all honest sellers and then frame each other until one monopolist remains (29 of 30 seeds). The median rule protects the honest sellers when the learners are a minority (N = 5, 8: no honest seller is bankrupted); at N = 3 they are a majority and framed in 1 seed of 10.
 - **Price cap enforced by escrow** ([escrow_cap_all.csv](results/defences/escrow_cap_all.csv)). With all sellers learning (300M steps), no sanctions, no bankruptcies, all firms survive and prices sit at the cap (0.59), compared with 0.69 under mean + escrow.
+- **Remaining proposal items** ([run_promises.py](experiments/run_promises.py), [results/promises](results/promises/), tests in [promises_comparisons.csv](results/stats/promises_comparisons.csv)).
+  - *z-score rule:* a high-priced seller's z is √(k/(N−k)) whatever the undercut depth. At τ = 0.5 a single learner frames both rivals in 20/20 seeds, like the mean rule; at τ = 1 it prices at Nash.
+  - *Omniscient planner* (flags only prices above own Nash price): with all learners, no framing, all survive, prices at Nash, welfare loss 0.
+  - *Top-score-first audits:* no protection against a single learner. With all learners they cause a race below Nash (0.15–0.19) and remove most framing, but make two-seller coalition framing systematic under τ = 1 (1.00 per episode).
+  - *T_ban ∈ {1, 3, 5, 10}:* at K0 = 3Φ, T_ban ≥ 3 is lethal and gives identical results; one-period bans cut framing to 0.35.
+  - *Exact-timer observation:* framing in 0/20 seeds at 2M steps but 20/20 at 20M and 100M; the coarse state only speeds learning.
+  - *Trait mixtures:* one risk-neutral or selfish seller restores framing in a risk-averse or altruistic population (1.24 and 1.10 vs 0 and 0.09); ethics has no effect.
 - **Correction to Section 5.2.** At 300M steps the cap control with N_min = 2 has no bankruptcies and all firms survive ([cap_controls_300M.csv](results/controls_rerun/cap_controls_300M.csv)); the 10M "race to the last seller" is a learning-phase effect, not a stable outcome.
 
 ## 6. Discussion and limitations
