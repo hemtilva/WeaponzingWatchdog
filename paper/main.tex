@@ -226,7 +226,7 @@ Two independent deep learners first undercut together and bankrupt almost all ho
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.78\linewidth]{figures/training_length.pdf}
+\includegraphics[width=0.70\linewidth]{figures/training_length.pdf}
 \caption{All three sellers learning, same ten seeds at each training length: attributed bankruptcies (left) and $W$ (right). Error bars: one standard error.}
 \label{fig:training}
 \end{figure}
@@ -251,7 +251,7 @@ When every seller learns, framing needs long training (Figure~\ref{fig:training}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{figures/sensitivity.pdf}
+\includegraphics[width=0.85\linewidth]{figures/sensitivity.pdf}
 \caption{All sellers learning ($3\times10^8$ steps, 10 seeds): attributed bankruptcies under the mean and median rules when one feature of the market or of learning changes.}
 \label{fig:sensitivity}
 \end{figure}
@@ -262,7 +262,7 @@ When every seller learns, framing needs long training (Figure~\ref{fig:training}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.8\linewidth]{figures/phase_diagram.pdf}
+\includegraphics[width=0.72\linewidth]{figures/phase_diagram.pdf}
 \caption{Attributed bankruptcies with all sellers learning ($3\times10^8$ steps) over capital buffer and ban length. Outlined cells: one ban is lethal, the only region where H2 predicted framing.}
 \label{fig:phase}
 \end{figure}
@@ -273,7 +273,7 @@ Figure~\ref{fig:phase} rejects H2: where a banned rival survives, the mean rule 
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.85\linewidth]{figures/traits.pdf}
+\includegraphics[width=0.78\linewidth]{figures/traits.pdf}
 \caption{Attributed bankruptcies as one trait varies (all sellers share it; mean rule), at $10^7$ and $3\times10^8$ steps; 10 seeds per point.}
 \label{fig:traits}
 \end{figure}
@@ -307,24 +307,8 @@ Cap 0.60 + escrow & --- & 0.00 & --- & 0.00 & 3.00 & 0.59 \\
 %% ===================================================================
 \section{Discussion and Conclusion}
 
-\begin{table}[t]
-\centering
-\caption{Hypotheses and findings.}
-\label{tab:scorecard}
-\small
-\begin{tabularx}{\linewidth}{@{}lXl@{}}
-\toprule
-& Finding & Verdict \\
-\midrule
-H1 & One learner frames under the mean rule in every seed, never under the median or cap; mean $>$ median in all 21 all-learner variations; the median fails when attackers are a majority. & Supported, with a caveat \\
-H2 & Framing is as frequent where a banned rival survives as where one ban kills. & Rejected \\
-H3 & Risk aversion and altruism reduce framing; an ethics penalty does not. & Partly supported \\
-H4 & Learners reach the exact optimum when one ban suffices, less as more repeated bans are needed. & Supported \\
-\bottomrule
-\end{tabularx}
-\end{table}
 
-A watchdog whose benchmark is computed from the prices it judges gives every seller a lever over its rivals' treatment, and independent learners, tabular or deep, alone or several, find and use it (Table~\ref{tab:scorecard}). A median benchmark removes the lever while attackers are a minority; smoothing the benchmark only slows the attack; a fixed cap enforced by fines rather than suspensions removes it and still holds prices down. Short training repeatedly gave the wrong picture, understating framing and making H2 look true.
+A watchdog whose benchmark is computed from the prices it judges gives every seller a lever over its rivals' treatment, and independent learners, tabular or deep, alone or several, find and use it. In summary, \textbf{H1 is supported} with one caveat (the median rule fails when attackers are a majority), \textbf{H2 is rejected}, \textbf{H3 is partly supported} (no effect of the ethics penalty) and \textbf{H4 is supported}. A median benchmark removes the lever while attackers are a minority; smoothing the benchmark only slows the attack; a fixed cap enforced by fines rather than suspensions removes it and still holds prices down. Short training repeatedly gave the wrong picture, understating framing and making H2 look true.
 
 \paragraph{Limitations and future work.} The market is synthetic and not calibrated to a platform, although the main comparison survives changes to demand, capital and learning parameters. Tabular all-learner studies are limited to $N\le5$; deep learners reach $N=10$, but we have run at most two at once. Independent learners with non-Markov observations do not reach equilibria \citep{busoniu2008}, and the exact benchmark covers one learner in cells where a ban is lethal or nearly so. Future work: markets where every seller is a deep learner (a vectorised GPU simulator is implemented on the repository's \texttt{gpu-vectorized} branch), honest sellers that defend themselves, and the proposal's learning regulator.
 
@@ -333,10 +317,7 @@ A watchdog whose benchmark is computed from the prices it judges gives every sel
 %% ===================================================================
 \section{Team Contributions}
 
-\begin{table}[h]
-\centering
-\small
-\begin{tabularx}{\linewidth}{@{}lXXl@{}}
+{\small\noindent\begin{tabularx}{\linewidth}{@{}lXXl@{}}
 \toprule
 Member & Assigned in proposal & Delivered & Fulfilled? \\
 \midrule
@@ -344,8 +325,7 @@ Satvik Sharma & Market engine, exact best-response baseline, Extension B & \text
 Krish Goradia & Q-learning agents with traits, harm attribution and metrics, DQN ablation & \textit{[to be completed]} & \textit{[yes/partly/no]} \\
 Hem Tilva & Sweep orchestration, analysis and plots, Extension A & \textit{[to be completed]} & \textit{[yes/partly/no]} \\
 \bottomrule
-\end{tabularx}
-\end{table}
+\end{tabularx}}
 
 \bibliographystyle{unsrtnat}
 \bibliography{references}
