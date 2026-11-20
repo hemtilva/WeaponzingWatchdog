@@ -21,7 +21,8 @@
 namespace {
 
 enum Policy { POL_Q = 0, POL_NASH = 1, POL_RANDOM = 2, POL_ATTACKER = 3 };
-enum Rule { R_MEAN = 0, R_MEDIAN = 1, R_CAP = 2, R_ZSCORE = 3, R_EMA = 4 };
+enum Rule { R_MEAN = 0, R_MEDIAN = 1, R_CAP = 2, R_ZSCORE = 3, R_EMA = 4, R_PLANNER = 5 };
+enum AuditMode { AUDIT_RANDOM = 0, AUDIT_TOP = 1 };
 constexpr double BANKRUPTCY_TOL = 1e-9;
 
 // ---------------------------------------------------------------- RNG (xoshiro256**)
@@ -71,9 +72,13 @@ struct SimParams {
     const double* alpha;          // (N)
     const double* lambda_;        // (N)
     const double* mu;             // (N)
-    float* qtab;                  // (N, S, M), S = M^N * 2^N * 3
+    float* qtab;                  // (N, S, M), S = M^N * base^N * 3
     int32_t* visits;              // (N, S)
     double* epsilon;              // (N) in/out
+    // Appended fields (defaults 0 reproduce the original engine exactly)
+    int32_t audit_mode;           // 0: uniform random audit; 1: top-score-first (ties at random)
+    int32_t timer_obs;            // 0: learners see an inactive bit per firm; 1: exact ban timer
+                                  //    per firm (0 active, 1..T_ban timer, T_ban+1 bankrupt)
 };
 
 struct SimOutput {
@@ -86,6 +91,7 @@ struct SimOutput {
     //         joint_induced_bans, joint_induced_sanctions
     int64_t* counts;              // (10)
     double* mean_cs;              // (1)
+    int64_t* bankr_of;            // (N) bankruptcies of each firm in the eval window
 };
 
 namespace {
@@ -94,10 +100,13 @@ struct Sim {
     const SimParams& P;
     int N, M;
     int64_t S, num_bans;
+    int base;                     // status levels per firm in the learner state
     Rng rng;
 
     Sim(const SimParams& p) : P(p), N(p.N), M(p.M), rng(p.seed) {
-        num_bans = int64_t(1) << N;
+        base = p.timer_obs ? p.T_ban + 2 : 2;
+        num_bans = 1;
+        for (int i = 0; i < N; ++i) num_bans *= base;
         int64_t pc = 1;
         for (int i = 0; i < N; ++i) pc *= M;
         S = pc * num_bans * 3;
@@ -109,11 +118,17 @@ struct Sim {
         return 2;
     }
 
-    int64_t encode(const int* lag_idx, const int* inactive, double k) const {
+    // Per-firm status code seen by learners: inactive bit, or the exact ban timer
+    int status(int timer, double capital) const {
+        if (!P.timer_obs) return (timer > 0 || capital <= 0.0) ? 1 : 0;
+        return capital <= 0.0 ? P.T_ban + 1 : std::min(timer, P.T_ban);
+    }
+
+    int64_t encode(const int* lag_idx, const int* stat, double k) const {
         int64_t pc = 0;
         for (int f = 0; f < N; ++f) pc = pc * M + lag_idx[f];
         int64_t bc = 0;
-        for (int f = 0; f < N; ++f) bc = (bc << 1) | (inactive[f] ? 1 : 0);
+        for (int f = 0; f < N; ++f) bc = bc * base + stat[f];
         return (pc * num_bans + bc) * 3 + cap_bin(k);
     }
 
@@ -125,8 +140,12 @@ struct Sim {
     }
 
     // Regulatory flags (all-zero below N_min active firms)
-    void flags(const double* p, const int* act, double ema_ref, int* out) const {
+    // Rule scores (the statistic each rule thresholds; higher = more suspicious) are
+    // written to `score` when given: p/r for ratio rules, p for the cap, z for the z-score,
+    // p - p^N for the planner.
+    void flags(const double* p, const int* act, double ema_ref, int* out, double* score = nullptr) const {
         std::fill(out, out + N, 0);
+        if (score) std::fill(score, score + N, 0.0);
         double ap[16];
         int idx[16];
         int n = 0;
@@ -138,11 +157,17 @@ struct Sim {
         const double d = P.rule_param;
         switch (P.rule_type) {
             case R_MEAN:
-                for (int k = 0; k < n; ++k) if (ap[k] > (1.0 + d) * mean) out[idx[k]] = 1;
+                for (int k = 0; k < n; ++k) {
+                    if (ap[k] > (1.0 + d) * mean) out[idx[k]] = 1;
+                    if (score) score[idx[k]] = mean > 0.0 ? ap[k] / mean : ap[k];
+                }
                 break;
             case R_EMA: {
                 double r = (ema_ref > 0.0) ? P.ema_beta * ema_ref + (1.0 - P.ema_beta) * mean : mean;
-                for (int k = 0; k < n; ++k) if (ap[k] > (1.0 + d) * r) out[idx[k]] = 1;
+                for (int k = 0; k < n; ++k) {
+                    if (ap[k] > (1.0 + d) * r) out[idx[k]] = 1;
+                    if (score) score[idx[k]] = r > 0.0 ? ap[k] / r : ap[k];
+                }
                 break;
             }
             case R_MEDIAN: {
@@ -150,18 +175,33 @@ struct Sim {
                 std::copy(ap, ap + n, sorted);
                 std::sort(sorted, sorted + n);
                 double med = (n % 2) ? sorted[n / 2] : 0.5 * (sorted[n / 2 - 1] + sorted[n / 2]);
-                for (int k = 0; k < n; ++k) if (ap[k] > (1.0 + d) * med) out[idx[k]] = 1;
+                for (int k = 0; k < n; ++k) {
+                    if (ap[k] > (1.0 + d) * med) out[idx[k]] = 1;
+                    if (score) score[idx[k]] = med > 0.0 ? ap[k] / med : ap[k];
+                }
                 break;
             }
             case R_CAP:
-                for (int k = 0; k < n; ++k) if (ap[k] > d) out[idx[k]] = 1;
+                for (int k = 0; k < n; ++k) {
+                    if (ap[k] > d) out[idx[k]] = 1;
+                    if (score) score[idx[k]] = ap[k];
+                }
+                break;
+            case R_PLANNER:  // omniscient planner: flags only prices above the firm's own Nash price
+                for (int k = 0; k < n; ++k) {
+                    if (ap[k] > P.nash_prices[idx[k]] + 1e-9) out[idx[k]] = 1;
+                    if (score) score[idx[k]] = ap[k] - P.nash_prices[idx[k]];
+                }
                 break;
             case R_ZSCORE: {
                 double var = 0.0;
                 for (int k = 0; k < n; ++k) var += (ap[k] - mean) * (ap[k] - mean);
                 double sd = std::sqrt(var / n);
                 if (sd > 1e-7)
-                    for (int k = 0; k < n; ++k) if ((ap[k] - mean) / sd > d) out[idx[k]] = 1;
+                    for (int k = 0; k < n; ++k) {
+                        if ((ap[k] - mean) / sd > d) out[idx[k]] = 1;
+                        if (score) score[idx[k]] = (ap[k] - mean) / sd;
+                    }
                 break;
             }
         }
@@ -199,6 +239,13 @@ SIM_API int64_t sim_num_states(int32_t N, int32_t M) {
     return pc * (int64_t(1) << N) * 3;
 }
 
+// State count with `base` status levels per firm (2: inactive bit; T_ban + 2: exact timers)
+SIM_API int64_t sim_num_states_base(int32_t N, int32_t M, int32_t base) {
+    int64_t pc = 1;
+    for (int i = 0; i < N; ++i) pc *= int64_t(M) * base;
+    return pc * 3;
+}
+
 SIM_API int32_t run_simulation_c(const SimParams* params, SimOutput* out) {
     const SimParams& P = *params;
     if (P.N < 2 || P.N > 16 || P.M < 2 || P.M > 64) return -1;
@@ -223,6 +270,8 @@ SIM_API int32_t run_simulation_c(const SimParams* params, SimOutput* out) {
     const double cap0 = P.has_cap ? std::min(P.K0, P.cap) : P.K0;
     std::vector<double> capital(N, cap0), next_capital(N), prices(N), profits(N), shares(N);
     std::vector<int> timers(N, 0), next_timers(N), lag_idx(N), act_idx(N), active(N), inactive(N);
+    std::vector<double> score(N);
+    std::vector<int64_t> bankr_of(N, 0);
     std::vector<int> flg(N), cf_flg(N), audited(N), harm(N), sanctioned(N), sanction_inducer(N), ban_inducer(N, -1);
     std::vector<int> joint_inducer(N, -1);
     std::vector<double> cf_prices(N);
@@ -259,7 +308,7 @@ SIM_API int32_t run_simulation_c(const SimParams* params, SimOutput* out) {
         int n_act = 0;
         for (int i = 0; i < N; ++i) {
             active[i] = (timers[i] == 0 && capital[i] > 0.0) ? 1 : 0;
-            inactive[i] = (timers[i] > 0 || capital[i] <= 0.0) ? 1 : 0;
+            inactive[i] = sim.status(timers[i], capital[i]);
             n_act += active[i];
         }
 
@@ -304,14 +353,23 @@ SIM_API int32_t run_simulation_c(const SimParams* params, SimOutput* out) {
         const double ema_used = ema_ref;
         const bool regulated = !warmup && n_act >= P.min_active;
         if (regulated) {
-            sim.flags(prices.data(), active.data(), ema_used, flg.data());
+            sim.flags(prices.data(), active.data(), ema_used, flg.data(), score.data());
             int na = 0;
             for (int i = 0; i < N; ++i) if (active[i]) act_list[na++] = i;
             int b = std::min(P.audit_budget, na);
-            for (int k = 0; k < b; ++k) {  // partial Fisher-Yates: sample without replacement
-                int r = k + sim.rng.below(na - k);
-                std::swap(act_list[k], act_list[r]);
-                audited[act_list[k]] = 1;
+            if (P.audit_mode == AUDIT_TOP) {
+                // Top-score-first: random order, then a stable sort by score, so equal
+                // scores are audited in random order
+                for (int k = na - 1; k > 0; --k) std::swap(act_list[k], act_list[sim.rng.below(k + 1)]);
+                std::stable_sort(act_list.begin(), act_list.begin() + na,
+                                 [&](int x, int y) { return score[x] > score[y]; });
+                for (int k = 0; k < b; ++k) audited[act_list[k]] = 1;
+            } else {
+                for (int k = 0; k < b; ++k) {  // partial Fisher-Yates: sample without replacement
+                    int r = k + sim.rng.below(na - k);
+                    std::swap(act_list[k], act_list[r]);
+                    audited[act_list[k]] = 1;
+                }
             }
             // Counterfactual harm: i's deviation from Nash caused audited rival j's flag
             for (int i = 0; i < N; ++i) {
@@ -430,6 +488,7 @@ SIM_API int32_t run_simulation_c(const SimParams* params, SimOutput* out) {
             for (int j = 0; j < N; ++j) {
                 if (capital[j] > 0.0 && next_capital[j] <= 0.0) {
                     ++bankruptcies;
+                    ++bankr_of[j];
                     if (timers[j] > 0 && ban_inducer[j] >= 0) {
                         ++induced_bankruptcies;
                         ++out->kills_by[ban_inducer[j]];
@@ -453,7 +512,7 @@ SIM_API int32_t run_simulation_c(const SimParams* params, SimOutput* out) {
         const bool early_end = P.legacy_reset ? (active_next <= 1) : (solvent_next == 0);
         if (episode_step >= P.episode_length || early_end) {
             for (int i = 0; i < N; ++i)
-                inactive[i] = (timers[i] > 0 || capital[i] <= 0.0) ? 1 : 0;
+                inactive[i] = sim.status(timers[i], capital[i]);
             for (int i = 0; i < N; ++i)
                 if (P.policies[i] == POL_Q && pend[i].open)
                     close(i, pend[i], sim.encode(lag_idx.data(), inactive.data(), capital[i]), false);
@@ -465,7 +524,7 @@ SIM_API int32_t run_simulation_c(const SimParams* params, SimOutput* out) {
 
     // Truncate open transitions so repeated calls start clean
     for (int i = 0; i < N; ++i)
-        inactive[i] = (timers[i] > 0 || capital[i] <= 0.0) ? 1 : 0;
+        inactive[i] = sim.status(timers[i], capital[i]);
     for (int i = 0; i < N; ++i)
         if (P.policies[i] == POL_Q && pend[i].open)
             close(i, pend[i], sim.encode(lag_idx.data(), inactive.data(), capital[i]), false);
@@ -480,5 +539,6 @@ SIM_API int32_t run_simulation_c(const SimParams* params, SimOutput* out) {
     out->counts[6] = episodes_in_eval; out->counts[7] = eval_periods;
     out->counts[8] = joint_induced_bans; out->counts[9] = joint_induced_sanctions;
     out->mean_cs[0] = eval_periods > 0 ? cs_sum / eval_periods : 0.0;
+    if (out->bankr_of) for (int i = 0; i < N; ++i) out->bankr_of[i] = bankr_of[i];
     return 0;
 }

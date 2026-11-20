@@ -15,6 +15,7 @@ class RuleType(IntEnum):
     PRICE_CAP = 2
     Z_SCORE = 3
     EMA_MEAN_RATIO = 4  # Defended rule: Exponential Moving Average smoothed mean
+    PLANNER = 5         # Omniscient planner: flags only prices above the firm's own Nash price
 
 
 def evaluate_rules(
@@ -25,10 +26,12 @@ def evaluate_rules(
     ema_ref: Optional[float] = None,
     beta: float = 0.85,
     min_active: int = 3,
+    nash_prices: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """Evaluates regulatory flags under the specified rule.
 
-    Flags are evaluated only when N_active >= min_active (N_min, default 3).
+    Flags are evaluated only when N_active >= min_active (N_min, default 3). The PLANNER
+    rule needs `nash_prices` (it knows costs, hence each firm's Nash price).
     """
     prices = np.ascontiguousarray(prices, dtype=np.float64)
     active_mask = np.ascontiguousarray(active_mask, dtype=np.int32)
@@ -83,8 +86,69 @@ def evaluate_rules(
             z_scores = (act_prices - np.mean(act_prices)) / std_p
             flagged = z_scores > param
             flags[active_indices[flagged]] = 1
+    elif rule_type_val == RuleType.PLANNER:
+        if nash_prices is None:
+            raise ValueError("PLANNER rule needs nash_prices")
+        ref = np.asarray(nash_prices, dtype=np.float64)[active_indices]
+        flags[active_indices[act_prices > ref + 1e-9]] = 1
 
     return flags
+
+
+def rule_scores(
+    prices: np.ndarray,
+    active_mask: np.ndarray,
+    rule_type: Union[RuleType, int],
+    ema_ref: Optional[float] = None,
+    beta: float = 0.85,
+    nash_prices: Optional[np.ndarray] = None,
+) -> np.ndarray:
+    """The statistic each rule thresholds (higher = more suspicious), used by top-score-first
+    audits: p / reference for the ratio rules, p for the cap, z for the z-score, p - p^N for
+    the planner. Inactive firms score 0. Mirrors Sim::flags in src/csrc/sim.cpp."""
+    prices = np.asarray(prices, dtype=np.float64)
+    idx = np.where(np.asarray(active_mask) != 0)[0]
+    out = np.zeros(len(prices), dtype=np.float64)
+    if len(idx) == 0:
+        return out
+    ap = prices[idx]
+    mean = float(np.mean(ap))
+    rt = int(rule_type)
+    if rt in (RuleType.MEAN_RATIO, RuleType.EMA_MEAN_RATIO, RuleType.MEDIAN_RATIO):
+        if rt == RuleType.MEAN_RATIO:
+            r = mean
+        elif rt == RuleType.EMA_MEAN_RATIO:
+            r = beta * ema_ref + (1.0 - beta) * mean if (ema_ref is not None and ema_ref > 0.0) else mean
+        else:
+            r = float(np.median(ap))
+        out[idx] = ap / r if r > 0.0 else ap
+    elif rt == RuleType.PRICE_CAP:
+        out[idx] = ap
+    elif rt == RuleType.Z_SCORE:
+        sd = float(np.std(ap))
+        if sd > 1e-7:
+            out[idx] = (ap - mean) / sd
+    elif rt == RuleType.PLANNER:
+        out[idx] = ap - np.asarray(nash_prices, dtype=np.float64)[idx]
+    return out
+
+
+def select_top_audit_set(
+    active_mask: np.ndarray,
+    scores: np.ndarray,
+    budget: int,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Top-score-first audit: the `budget` active firms with the highest rule score, equal
+    scores in random order (random permutation, then a stable sort by score)."""
+    idx = np.where(np.asarray(active_mask) != 0)[0]
+    audited = np.zeros(len(active_mask), dtype=np.int32)
+    if len(idx) == 0:
+        return audited
+    perm = idx[rng.permutation(len(idx))]
+    order = perm[np.argsort(-np.asarray(scores)[perm], kind="stable")]
+    audited[order[:min(budget, len(idx))]] = 1
+    return audited
 
 
 def sample_audit_set(
@@ -171,13 +235,15 @@ def compute_counterfactual_harm(
         return harm
 
     # NumPy Fallback
-    actual_flags = evaluate_rules(prices, active_mask, rule_type_val, param, ema_ref=ema_ref, beta=beta, min_active=min_active)
+    actual_flags = evaluate_rules(prices, active_mask, rule_type_val, param, ema_ref=ema_ref, beta=beta,
+                                  min_active=min_active, nash_prices=nash_prices)
     for i in range(N):
         if active_mask[i] == 0:
             continue
         cf_prices = prices.copy()
         cf_prices[i] = nash_prices[i]
-        cf_flags = evaluate_rules(cf_prices, active_mask, rule_type_val, param, ema_ref=ema_ref, beta=beta, min_active=min_active)
+        cf_flags = evaluate_rules(cf_prices, active_mask, rule_type_val, param, ema_ref=ema_ref, beta=beta,
+                                  min_active=min_active, nash_prices=nash_prices)
 
         for j in range(N):
             if j != i and audited[j] != 0:

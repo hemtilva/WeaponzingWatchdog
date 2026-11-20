@@ -29,15 +29,30 @@ class StateIndexer:
     Total states: (M^N) * (2^N) * 3.
       - N=3, M=11: 11^3 * 8 * 3 = 31,944 states.
       - N=4, M=7:   7^4 * 16 * 3 = 115,248 states (~110,000 states).
+
+    Ban-timer ablation (`timer_levels` = T_ban): the inactivity bit is replaced by the exact
+    status of each firm, 0 (active), 1..T_ban (remaining ban) or T_ban + 1 (bankrupt), so the
+    status part has (T_ban + 2)^N values.
     """
 
-    def __init__(self, price_grid: np.ndarray, fixed_cost: float = 0.2, num_firms: int = 3):
+    def __init__(self, price_grid: np.ndarray, fixed_cost: float = 0.2, num_firms: int = 3,
+                 timer_levels: Optional[int] = None):
         self.price_grid = np.asarray(price_grid, dtype=np.float64)
         self.M = len(self.price_grid)
         self.fixed_cost = fixed_cost
         self.num_firms = num_firms
-        self.num_bans = 2 ** num_firms
+        self.timer_levels = timer_levels
+        self.base = 2 if timer_levels is None else int(timer_levels) + 2
+        self.num_bans = self.base ** num_firms
         self.num_states = (self.M ** num_firms) * self.num_bans * 3
+
+    def status(self, timers: np.ndarray, capital: np.ndarray) -> np.ndarray:
+        """Per-firm status codes for `encode` (mirrors Sim::status in src/csrc/sim.cpp)."""
+        timers = np.asarray(timers)
+        capital = np.asarray(capital)
+        if self.timer_levels is None:
+            return ((timers > 0) | (capital <= 0.0)).astype(np.int64)
+        return np.where(capital <= 0.0, self.timer_levels + 1, np.minimum(timers, self.timer_levels)).astype(np.int64)
 
     def get_capital_bin(self, capital: float) -> int:
         """Discretizes continuous capital into 3 bins:
@@ -70,7 +85,8 @@ class StateIndexer:
 
         ban_combo = 0
         for b in ban_indicators[:self.num_firms]:
-            ban_combo = (ban_combo << 1) | int(b > 0)
+            code = int(b > 0) if self.base == 2 else int(b)
+            ban_combo = ban_combo * self.base + code
 
         cap_bin = self.get_capital_bin(capital)
         state_idx = (price_combo * self.num_bans + ban_combo) * 3 + cap_bin
@@ -87,8 +103,8 @@ class StateIndexer:
 
         bans = []
         for _ in range(self.num_firms):
-            bans.append(ban_combo % 2)
-            ban_combo //= 2
+            bans.append(ban_combo % self.base)
+            ban_combo //= self.base
         bans = tuple(reversed(bans))
 
         prices = []

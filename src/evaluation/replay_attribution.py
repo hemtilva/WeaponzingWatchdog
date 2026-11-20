@@ -16,7 +16,8 @@ its window.
 The replay engine mirrors the native loop (src/csrc/sim.cpp) period by period: actions
 from the encoded observation, logit clearing, regulation when N_active >= N_min (flags,
 one uniformly drawn audit, suspension or escrow), the EMA reference update, and capital
-with the reserve cap. Frozen Q-learners act greedily; ties go to the lowest price index
+with the reserve cap. With audit_mode "top" the highest rule score is audited and the
+uniform breaks ties. Frozen Q-learners act greedily; ties go to the lowest price index
 (the native engine breaks ties at random, so a few states can differ from engine runs).
 """
 from dataclasses import dataclass
@@ -60,6 +61,8 @@ class ReplayEngine:
         self.cap = self.m.capital_cap
         self.cap0 = self.m.initial_capital if self.cap is None else min(self.m.initial_capital, self.cap)
         self.T = int(self.m.ban_duration)
+        self.nash_prices = np.asarray(tr.nash_prices, dtype=np.float64)
+        self.top_audit = getattr(tr.cfg, "audit_mode", "random") == "top"
         self.policies = list(policies) if policies is not None else [self.policy_for(i) for i in range(self.N)]
 
     # ---------------------------------------------------------------- policies
@@ -68,10 +71,10 @@ class ReplayEngine:
         if p == "q":
             Q = self.tr.agents[i].Q
             enc = self.tr.indexer.encode
+            status = self.tr.indexer.status
 
             def act(st: _State, num_active: int, i=i, Q=Q, enc=enc):
-                inactive = (st.timers > 0) | (st.capital <= 0.0)
-                s = enc(self.grid[st.lag_idx], inactive, st.capital[i])
+                s = enc(self.grid[st.lag_idx], status(st.timers, st.capital), st.capital[i])
                 return int(np.argmax(Q[s]))
             return act
         if p == "nash":
@@ -82,7 +85,7 @@ class ReplayEngine:
         raise ValueError(f"no replay policy for '{p}'")
 
     # ---------------------------------------------------------------- rules
-    def _flags(self, p, act, ema):
+    def _flags(self, p, act, ema, score=None):
         out = np.zeros(self.N, dtype=bool)
         idx = np.where(act)[0]
         if len(idx) < self.n_min:
@@ -90,6 +93,25 @@ class ReplayEngine:
         ap = p[idx]
         mean = ap.mean()
         d = self.param
+        if self.rule == RuleType.PRICE_CAP:
+            if score is not None:
+                score[idx] = ap
+            out[idx] = ap > d
+            return out
+        if self.rule == RuleType.PLANNER:
+            gap = ap - self.nash_prices[idx]
+            if score is not None:
+                score[idx] = gap
+            out[idx] = gap > 1e-9
+            return out
+        if self.rule == RuleType.Z_SCORE:
+            sd = ap.std()
+            if sd > 1e-7:
+                z = (ap - mean) / sd
+                if score is not None:
+                    score[idx] = z
+                out[idx] = z > d
+            return out
         if self.rule == RuleType.MEAN_RATIO:
             ref = mean
         elif self.rule == RuleType.EMA_MEAN_RATIO:
@@ -98,11 +120,10 @@ class ReplayEngine:
             s = np.sort(ap)
             n = len(s)
             ref = s[n // 2] if n % 2 else 0.5 * (s[n // 2 - 1] + s[n // 2])
-        elif self.rule == RuleType.PRICE_CAP:
-            out[idx] = ap > d
-            return out
         else:
             raise ValueError("unsupported rule for replay")
+        if score is not None:
+            score[idx] = ap / ref if ref > 0.0 else ap
         out[idx] = ap > (1.0 + d) * ref
         return out
 
@@ -127,8 +148,11 @@ class ReplayEngine:
         audited = np.zeros(N, dtype=bool)
         flags = np.zeros(N, dtype=bool)
         if n_act >= self.n_min:
-            flags = self._flags(p, act, st.ema)
+            score = np.zeros(N)
+            flags = self._flags(p, act, st.ema, score)
             idx = np.where(act)[0]
+            if self.top_audit:
+                idx = idx[score[idx] == score[idx].max()]  # highest score; u breaks ties
             audited[idx[min(int(u * len(idx)), len(idx) - 1)]] = True
         hit = audited & flags
         sanction = hit & (st.timers == 0)

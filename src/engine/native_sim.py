@@ -33,6 +33,7 @@ class NativeSimParams(ctypes.Structure):
         ("nash_idx", _c_int32_p), ("mono_idx", _c_int32_p), ("policies", _c_int32_p),
         ("alpha", _c_double_p), ("lambda_", _c_double_p), ("mu", _c_double_p),
         ("qtab", _c_float_p), ("visits", _c_int32_p), ("epsilon", _c_double_p),
+        ("audit_mode", ctypes.c_int32), ("timer_obs", ctypes.c_int32),
     ]
 
 
@@ -40,7 +41,7 @@ class NativeSimOutput(ctypes.Structure):
     _fields_ = [
         ("mean_prices", _c_double_p), ("mean_profits", _c_double_p),
         ("induced_by", _c_int64_p), ("kills_by", _c_int64_p),
-        ("counts", _c_int64_p), ("mean_cs", _c_double_p),
+        ("counts", _c_int64_p), ("mean_cs", _c_double_p), ("bankr_of", _c_int64_p),
     ]
 
 
@@ -53,6 +54,8 @@ if is_native_sim_available():
     NATIVE_LIB.run_simulation_c.restype = ctypes.c_int32
     NATIVE_LIB.sim_num_states.argtypes = [ctypes.c_int32, ctypes.c_int32]
     NATIVE_LIB.sim_num_states.restype = ctypes.c_int64
+    NATIVE_LIB.sim_num_states_base.argtypes = [ctypes.c_int32, ctypes.c_int32, ctypes.c_int32]
+    NATIVE_LIB.sim_num_states_base.restype = ctypes.c_int64
 
 
 def _ptr(arr: np.ndarray, ctype):
@@ -90,6 +93,7 @@ def run_native(arrays: Dict[str, np.ndarray], scalars: Dict[str, Any]) -> Dict[s
         nash_idx=i32("nash_idx"), mono_idx=i32("mono_idx"), policies=i32("policies"),
         alpha=d("alpha"), lambda_=d("lambda_"), mu=d("mu"),
         qtab=_ptr(qtab, ctypes.c_float), visits=_ptr(visits, ctypes.c_int32), epsilon=_ptr(eps, ctypes.c_double),
+        audit_mode=int(scalars.get("audit_mode", 0)), timer_obs=int(scalars.get("timer_obs", 0)),
     )
 
     mean_prices = np.zeros(N, dtype=np.float64)
@@ -98,10 +102,12 @@ def run_native(arrays: Dict[str, np.ndarray], scalars: Dict[str, Any]) -> Dict[s
     kills_by = np.zeros(N, dtype=np.int64)
     counts = np.zeros(10, dtype=np.int64)
     mean_cs = np.zeros(1, dtype=np.float64)
+    bankr_of = np.zeros(N, dtype=np.int64)
     o = NativeSimOutput(
         mean_prices=_ptr(mean_prices, ctypes.c_double), mean_profits=_ptr(mean_profits, ctypes.c_double),
         induced_by=_ptr(induced_by, ctypes.c_int64), kills_by=_ptr(kills_by, ctypes.c_int64),
         counts=_ptr(counts, ctypes.c_int64), mean_cs=_ptr(mean_cs, ctypes.c_double),
+        bankr_of=_ptr(bankr_of, ctypes.c_int64),
     )
     rc = NATIVE_LIB.run_simulation_c(ctypes.byref(p), ctypes.byref(o))
     if rc != 0:
@@ -112,7 +118,7 @@ def run_native(arrays: Dict[str, np.ndarray], scalars: Dict[str, Any]) -> Dict[s
             "joint_induced_bans", "joint_induced_sanctions")
     res = {k: int(v) for k, v in zip(keys, counts)}
     res.update(mean_prices=mean_prices, mean_profits=mean_profits, induced_by=induced_by,
-               kills_by=kills_by, mean_consumer_surplus=float(mean_cs[0]))
+               kills_by=kills_by, mean_consumer_surplus=float(mean_cs[0]), bankr_of=bankr_of)
     return res
 
 

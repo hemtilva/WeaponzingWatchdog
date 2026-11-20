@@ -15,6 +15,8 @@ from src.engine.rules import (
     RuleType,
     evaluate_rules,
     sample_audit_set,
+    select_top_audit_set,
+    rule_scores,
     update_ban_timers,
     compute_counterfactual_harm,
 )
@@ -75,6 +77,11 @@ class SimulationConfig:
     # monopoly rents and makes eliminating all rivals look like a loss to learners.
     legacy_reset: bool = False
     trace_steps: int = 200          # Number of steps to record for visualization
+    # Audit selection: "random" (uniform over active firms) or "top" (top-score-first: the
+    # highest rule score, e.g. p / reference, is audited first; ties at random)
+    audit_mode: str = "random"
+    # Ban-timer ablation: learners observe each firm's exact ban timer instead of a bit
+    observe_ban_timers: bool = False
     seed: int = 42
 
 
@@ -115,6 +122,8 @@ class SimulationResults:
     joint_induced_bans: int = 0
     joint_induced_sanctions: int = 0
     joint_weaponization_rate: float = 0.0
+    # Bankruptcies of each firm in the eval window (victims; kills_by counts the inducers)
+    bankruptcies_of: Optional[np.ndarray] = None
 
 
 class MultiAgentTrainer:
@@ -169,7 +178,10 @@ class MultiAgentTrainer:
         )
 
         # Setup State Indexer & Agents
-        self.indexer = StateIndexer(self.price_grid, fixed_cost=self.m_cfg.fixed_cost, num_firms=self.N)
+        if config.audit_mode not in ("random", "top"):
+            raise ValueError(f"Unknown audit_mode: {config.audit_mode}")
+        self.indexer = StateIndexer(self.price_grid, fixed_cost=self.m_cfg.fixed_cost, num_firms=self.N,
+                                    timer_levels=self.m_cfg.ban_duration if config.observe_ban_timers else None)
         traits_list = config.agent_traits or [AgentTraits() for _ in range(self.N)]
 
         self.agents = [
@@ -240,6 +252,7 @@ class MultiAgentTrainer:
             cf_flags = evaluate_rules(
                 cf_p, active_mask, self.cfg.rule_type, self.cfg.rule_param,
                 ema_ref=ema_ref, beta=self.cfg.ema_beta, min_active=self.m_cfg.min_active_for_audit,
+                nash_prices=self.nash_prices,
             )
             if cf_flags[j] == 0:
                 gap = self.nash_prices[k] - prices[k]
@@ -266,6 +279,7 @@ class MultiAgentTrainer:
         cf_flags = evaluate_rules(
             cf_p, active_mask, self.cfg.rule_type, self.cfg.rule_param,
             ema_ref=ema_ref, beta=self.cfg.ema_beta, min_active=self.m_cfg.min_active_for_audit,
+            nash_prices=self.nash_prices,
         )
         if cf_flags[j] != 0:
             return -1
@@ -358,6 +372,8 @@ class MultiAgentTrainer:
             rule_param=float(self.cfg.rule_param), ema_beta=float(self.cfg.ema_beta),
             lr=q.learning_rate, gamma=q.gamma, eps_min=q.eps_min, eps_decay=q.eps_decay,
             reward_eps=REWARD_EPS,
+            audit_mode=1 if self.cfg.audit_mode == "top" else 0,
+            timer_obs=int(self.cfg.observe_ban_timers),
             seed=(int(self.cfg.seed) * 1_000_003 + self._native_calls) % (2 ** 64),
         )
         self._native_calls += 1
@@ -400,6 +416,7 @@ class MultiAgentTrainer:
         total_bankruptcies = induced_bankruptcies = 0
         induced_by = np.zeros(N, dtype=np.int64)
         kills_by = np.zeros(N, dtype=np.int64)
+        bankr_of = np.zeros(N, dtype=np.int64)
         episodes_in_eval = 0
         episode_step = 0
 
@@ -413,7 +430,7 @@ class MultiAgentTrainer:
 
             # 1. State encoding; close transitions of learners that are acting again
             current_states = [
-                self.indexer.encode(lagged_prices, (ban_timers > 0) | (capital <= 0.0), capital[i]) for i in range(N)
+                self.indexer.encode(lagged_prices, self.indexer.status(ban_timers, capital), capital[i]) for i in range(N)
             ]
             for i in range(N):
                 if is_q[i] and active_mask[i] and self.agents[i].has_pending:
@@ -450,8 +467,14 @@ class MultiAgentTrainer:
                 flags = evaluate_rules(
                     chosen_prices, active_mask, self.cfg.rule_type, self.cfg.rule_param,
                     ema_ref=ema_ref_used, beta=self.cfg.ema_beta, min_active=n_min,
+                    nash_prices=self.nash_prices,
                 )
-                audited = sample_audit_set(active_mask, m.audit_budget, self.rng)
+                if self.cfg.audit_mode == "top":
+                    scores = rule_scores(chosen_prices, active_mask, self.cfg.rule_type,
+                                         ema_ref=ema_ref_used, beta=self.cfg.ema_beta, nash_prices=self.nash_prices)
+                    audited = select_top_audit_set(active_mask, scores, m.audit_budget, self.rng)
+                else:
+                    audited = sample_audit_set(active_mask, m.audit_budget, self.rng)
                 harm = compute_counterfactual_harm(
                     chosen_prices, self.nash_prices, active_mask, audited,
                     self.cfg.rule_type, self.cfg.rule_param,
@@ -531,6 +554,7 @@ class MultiAgentTrainer:
 
                 for j in np.where(newly_bankrupt)[0]:
                     total_bankruptcies += 1
+                    bankr_of[j] += 1
                     if ban_timers[j] > 0 and ban_inducer[j] >= 0:
                         induced_bankruptcies += 1
                         kills_by[ban_inducer[j]] += 1
@@ -592,7 +616,7 @@ class MultiAgentTrainer:
             if episode_step >= self.cfg.episode_length or early_end:
                 for i in range(N):
                     if is_q[i] and self.agents[i].has_pending:
-                        s_next = self.indexer.encode(lagged_prices, (ban_timers > 0) | (capital <= 0.0), capital[i])
+                        s_next = self.indexer.encode(lagged_prices, self.indexer.status(ban_timers, capital), capital[i])
                         self.agents[i].close_transition(s_next)
                 capital, ban_timers, lagged_prices = fresh_state()
                 ema_ref = float(np.mean(lagged_prices))
@@ -605,7 +629,7 @@ class MultiAgentTrainer:
         for i in range(N):
             if is_q[i] and self.agents[i].has_pending:
                 self.agents[i].close_transition(
-                    self.indexer.encode(lagged_prices, (ban_timers > 0) | (capital <= 0.0), capital[i])
+                    self.indexer.encode(lagged_prices, self.indexer.status(ban_timers, capital), capital[i])
                 )
 
         eval_p_arr = np.array(eval_prices)
@@ -629,6 +653,7 @@ class MultiAgentTrainer:
             episodes_in_eval=episodes_in_eval,
             joint_induced_bans=joint_induced_bans,
             joint_induced_sanctions=joint_induced_sanctions,
+            bankr_of=bankr_of,
         ), trace_history, trace_exploit_events)
 
     def _finalize(self, raw: Dict[str, Any], trace_history=None, exploit_events=None) -> SimulationResults:
@@ -688,4 +713,5 @@ class MultiAgentTrainer:
             joint_induced_bans=int(raw["joint_induced_bans"]),
             joint_induced_sanctions=int(raw["joint_induced_sanctions"]),
             joint_weaponization_rate=float(w_joint),
+            bankruptcies_of=np.asarray(raw["bankr_of"], dtype=np.int64) if "bankr_of" in raw else None,
         )
