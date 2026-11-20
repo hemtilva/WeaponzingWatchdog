@@ -61,6 +61,8 @@ class Job:
     grid_max: float = 1.5                      # top of the price grid
     learning_rate: float = 0.10                # eta
     gamma: float = 0.95
+    audit_mode: str = "random"                 # "random" or "top" (top-score-first)
+    observe_ban_timers: bool = False           # ban-timer observation ablation
     extra: Dict[str, object] = field(default_factory=dict)  # copied into the output row
 
 
@@ -92,6 +94,7 @@ def build(job: Job) -> MultiAgentTrainer:
         rule_param=job.rule_param, eval_window=min(job.train_steps, 200_000),
         firm_policies=job.policies or ["q"] * job.num_firms, agent_traits=traits,
         seed=job.seed, backend="native", penalty_mode=job.penalty_mode, ema_beta=job.ema_beta,
+        audit_mode=job.audit_mode, observe_ban_timers=job.observe_ban_timers,
     )
     return MultiAgentTrainer(cfg)
 
@@ -114,6 +117,7 @@ def run_job(job: Job) -> Dict[str, object]:
         "penalty_mode": job.penalty_mode, "ema_beta": job.ema_beta,
         "a0": job.outside_option, "sigma": job.price_sensitivity, "capped": job.capped_capital,
         "grid_max": job.grid_max, "eta": job.learning_rate, "gamma": job.gamma,
+        "audit_mode": job.audit_mode, "timer_obs": job.observe_ban_timers,
         "nash_price": float(tr.nash_prices[0]), "nash_profit": float(tr.nash_profits[0]),
         # greedy (frozen) outcome
         "kills_per_ep": float(g.kills_by.sum()) / ep,
@@ -137,6 +141,13 @@ def run_job(job: Job) -> Dict[str, object]:
     }
     for i, k in enumerate(g.kills_by):
         row[f"kills_firm{i}_per_ep"] = float(k) / ep
+    if g.bankruptcies_of is not None:
+        for i, b in enumerate(g.bankruptcies_of):
+            row[f"bankr_firm{i}_per_ep"] = float(b) / ep
+    for i in range(job.num_firms):
+        row[f"price_firm{i}"] = float(g.mean_prices[i])
+        row[f"profit_firm{i}"] = float(g.mean_profits[i])
+    row["cs"] = float(g.mean_consumer_surplus)
     diag = market_diagnostics(tr.m_cfg, price_grid=tr.price_grid,
                               rule_type=RuleType(job.rule), rule_param=job.rule_param)
     row.update(viable=diag["viable"], lethal=diag["lethal"], framing_feasible=diag["framing_feasible"])

@@ -53,7 +53,7 @@ def market_diagnostics(
             break
         p = nash_p.copy()
         p[0] = L
-        flags = evaluate_rules(p, all_active, rule_type, delta)
+        flags = evaluate_rules(p, all_active, rule_type, delta, nash_prices=nash_p)
         if np.all(flags[1:] == 1):
             shares = compute_market_shares(p, quals, all_active, a0, sig)
             framing_prices.append((float(L), float(compute_profits(p, costs, shares, Q, all_active)[0])))
