@@ -63,7 +63,7 @@ Marketplaces suspend sellers whose prices look abnormal relative to the market. 
 
 \paragraph{A motivating scenario.} Three sellers offer similar products on an online platform, which suspends any seller priced more than 10\% above the current market average. Seller A, run by a learning algorithm, discovers that if it drops its price for a few periods, the average falls and Seller B's ordinary price now looks like gouging. B is suspended, cannot cover its fixed costs, and goes bankrupt; A raises its price and keeps the customers. A never broke a rule, yet the rule was used as a weapon.
 
-\paragraph{Why this matters.} Pricing is increasingly delegated to reinforcement-learning algorithms, which can learn supra-competitive prices without communicating \citep{calvano2020,klein2021,assad2024}, and competition authorities are considering automated supervision in response \citep{harrington2018}. Prior work treats the regulator as an obstacle; economic theory points to a different risk, \emph{raising rivals' costs} \citep{salop1983}: a rule that punishes rivals can be used to eliminate them.
+\paragraph{Why this matters.} Pricing is increasingly delegated to reinforcement-learning algorithms, which can learn supra-competitive prices without communicating \citep{calvano2020,klein2021,assad2024}, and competition authorities are considering automated supervision in response \citep{harrington2018}. Economic theory points to a risk beyond collusion, \emph{raising rivals' costs} \citep{salop1983}: a rule that punishes rivals can be used to eliminate them.
 
 \paragraph{Research question.}
 \begin{quote}\itshape
@@ -79,11 +79,11 @@ For which regulatory rules and capital levels do independent learning sellers di
 \end{itemize}
 
 \subsection{Related Work}
-Q-learning pricing agents have been studied in Bertrand and Cournot settings \citep{tesauro2002,waltman2008,calvano2020,klein2021}, and rival-responsive pricing rules raise prices without collusion \citep{brown2023}. Audit games study a budget-limited auditor \citep{blocki2013}, and learned policy design against adaptive agents appears in two-level RL \citep{zheng2022}. The closest economic idea is \emph{sabotage}: when agents are judged relative to peers, harming peers pays \citep{lazear1989,chowdhury2015}; executives evaluated against peer benchmarks price aggressively against those peers \citep{bloomfield2020}, and yardstick regulation sets a firm's price from its peers' costs \citep{shleifer1985}. Platforms use such rules (e.g.\ Amazon's Fair Pricing Policy). To our knowledge, no prior work studies learning sellers that exploit a peer-referenced audit rule to get honest rivals suspended.
+Q-learning pricing agents have been studied in Bertrand settings \citep{calvano2020,klein2021}, and rival-responsive pricing rules raise prices without collusion \citep{brown2023}. Audit games study a budget-limited auditor \citep{blocki2013}, and learned policy design against adaptive agents appears in two-level RL \citep{zheng2022}. The closest economic idea is \emph{sabotage}: when agents are judged relative to peers, harming peers pays \citep{lazear1989,chowdhury2015}; executives evaluated against peer benchmarks price aggressively against those peers \citep{bloomfield2020}, and yardstick regulation sets a firm's price from its peers' costs \citep{shleifer1985}. Platforms use such rules (e.g.\ Amazon's Fair Pricing Policy). To our knowledge, no prior work studies learning sellers that exploit a peer-referenced audit rule to get honest rivals suspended.
 
 %% ===================================================================
 \section{Preliminaries}
-We use discrete-time Markov games \citep{littman1994} with a logit oligopoly \citep{mcfadden1974,anderson1992}.
+We use discrete-time Markov games \citep{littman1994} with a logit oligopoly \citep{anderson1992}.
 
 \subsection{Notation}
 \begin{itemize}
@@ -145,7 +145,7 @@ with CRRA utility $U_\alpha$, $\varepsilon=0.01$, and $\Charm(i,t)$ the number o
 
 \paragraph{Simulator.} Each period: active sellers choose prices; the logit market clears; profits, fixed costs and capital update; if $\Nact\ge\Nmin$ one active seller is audited and suspended if flagged; sellers with $K=0$ exit. Episodes last 500 periods and end early only if no seller is solvent. The loop is implemented in Python and in C++ ($\approx930\times$ faster); tests check that both give identical trajectories and identical Q-tables (130 tests pass).
 
-\paragraph{Learning algorithms.} Each seller runs independent tabular Q-learning \citep{watkins1992,tan1993} on its own observation (Algorithm~\ref{alg:q}). A suspended seller cannot act, so its last transition stays open, accumulates discounted reward during the ban, and is closed with a multi-step target when it acts again, or without bootstrapping if it goes bankrupt; otherwise the cost of a ban would never reach the price that caused it. We use $\eta=0.10$, $\gamma=0.95$ and $\epsilon$ decaying from 1 to 0.01 over 60\% of training; outcomes are measured on frozen greedy policies over 100 episodes. For larger markets we use a \textbf{deep Q-network} with the same observation (continuous capital), reward and suspension-aware targets: double DQN, two hidden layers of 64, target network, updates every 4 steps.
+\paragraph{Learning algorithms.} Each seller runs independent tabular Q-learning \citep{watkins1992} on its own observation (Algorithm~\ref{alg:q}). A suspended seller cannot act, so its last transition stays open, accumulates discounted reward during the ban, and is closed with a multi-step target when it acts again, or without bootstrapping if it goes bankrupt; otherwise the cost of a ban would never reach the price that caused it. We use $\eta=0.10$, $\gamma=0.95$ and $\epsilon$ decaying from 1 to 0.01 over 60\% of training; outcomes are measured on frozen greedy policies over 100 episodes. For larger markets we use a \textbf{deep Q-network} with the same observation (continuous capital), reward and suspension-aware targets: double DQN, two hidden layers of 64, target network, updates every 4 steps.
 
 \begin{algorithm}[t]
 \caption{Independent Q-learning with suspension-aware transitions (seller $i$)}\label{alg:q}
@@ -164,7 +164,7 @@ with CRRA utility $U_\alpha$, $\varepsilon=0.01$, and $\Charm(i,t)$ the number o
 
 \paragraph{Exact best response.} With rivals fixed at Nash, one seller faces a single-agent MDP. We build it exactly by breadth-first search over reachable states (all ban timers and capitals; capital on a $\Phi/10$ grid, on which answers match a finer grid) and solve it by value iteration; honest pricing is evaluated in the same MDP, so the exploitability gain is non-negative. This replaces the proposal's DP solver, which returned impossible negative gains. It is tractable when a banned rival cannot survive its ban.
 
-\paragraph{But-for replay attribution.} We replay frozen-policy episodes with pre-drawn audit randomness and per-period checkpoints, hold rival $k$ (or all rivals) at Nash from $w$ periods before a ban to the end of the episode, and call the bankruptcy caused if the victim survives. On a scripted ``patient'' attacker under an EMA reference, the one-period $W$ attributes 70\% of its bans while the replay attributes 100\%.
+\paragraph{But-for replay attribution.} We replay frozen-policy episodes with pre-drawn audit randomness, hold rival $k$ (or all rivals) at Nash from $w$ periods before a ban to the end of the episode, and call the bankruptcy caused if the victim survives. On a scripted patient attacker under an EMA reference, the one-period $W$ attributes 70\% of its bans, the replay 100\%.
 
 \paragraph{Proposed defences.} An \emph{EMA reference} $r_t=\beta r_{t-1}+(1-\beta)\bar p_t$ smooths the benchmark; \emph{escrow} replaces a suspension by removing that period's profit above Nash.
 
@@ -211,23 +211,8 @@ Under the mean rule the tabular learner frames both rivals in every seed (Table~
 
 \subsection{Two learners among honest sellers: cooperate, then fight}
 
-\begin{table}[t]
-\centering
-\caption{Two independent DQN learners among $N-2$ Nash sellers, mean rule, $2\times10^6$ steps, 10 seeds. ``Duel'': seeds where a learner is bankrupted in most episodes. ``Caused jointly / alone'': bankruptcies avoided in the replay only if both learners, or either alone, price at Nash. Last column: survivors under the median rule.}
-\label{tab:two}
-\small
-\begin{tabular}{@{}ccccccc@{}}
-\toprule
-$N$ & Honest bankrupted & Duel & Survivors & Profit / learner (Nash) & Caused jointly / alone & Median survivors \\
-\midrule
-3 & 1.00 of 1 & 9/10 & 1.12 & 0.557 (0.100) & 1.82 / 0.85 & 2.80 \\
-5 & 2.92 of 3 & 10/10 & 1.05 & 0.619 (0.060) & 3.56 / 1.49 & 4.96 \\
-8 & 5.51 of 6 & 10/10 & 1.38 & 0.534 (0.038) & 6.06 / 5.50 & 8.00 \\
-\bottomrule
-\end{tabular}
-\end{table}
 
-Two independent deep learners first undercut together and bankrupt almost all honest sellers in every seed, many of these kills being avoided in the replay only if \emph{both} learners price honestly; then they frame each other until one monopolist remains, in 29 of 30 seeds (Table~\ref{tab:two}). The median rule protects the honest sellers whenever the two learners are a minority ($N=5,8$); at $N=3$ they are a majority, fall outside Proposition~\ref{prop:vuln}(ii), and framed in one seed of ten.
+Two independent DQN learners among $N-2$ Nash sellers ($2\times10^6$ steps, 10 seeds) first undercut together and bankrupt almost all honest sellers in every seed ($1.00$ of 1, $2.92$ of 3 and $5.51$ of 6 per episode for $N=3,5,8$), many of these kills being avoided in the replay only if \emph{both} learners price honestly; then they frame each other until one monopolist remains, in 29 of 30 seeds, learners earning on average 6--14 times the Nash profit. The median rule protects the honest sellers whenever the two learners are a minority ($N=5,8$: $4.96$ and $8.00$ survivors); at $N=3$ they are a majority, fall outside Proposition~\ref{prop:vuln}(ii), and framed in one seed of ten.
 
 \subsection{When all sellers learn, framing is causal and favours the mean rule (H1)}
 
@@ -248,7 +233,7 @@ EMA $\beta{=}0.95$ & 0.76\se{0.26} & 0.64\se{0.24} & 0.64\se{0.25} & 0.15 & 0.49
 \end{tabular}
 \end{table}
 
-When every seller learns, framing needs long training (Figure~\ref{fig:attack}b): under the mean rule attributed bankruptcies rise from $0.51$ at $10^7$ steps to $1.27$ at $3\times10^8$ and level off ($1.34$ at $10^9$). The mean--median gap is not significant at $10^7$ ($p_{\mathrm H}=0.14$) but is at $10^9$ ($0.78$, 95\% CI $[0.48,1.09]$, $p_{\mathrm H}=0.006$). The replay (Table~\ref{tab:replay}) shows that under the mean rule $1.34$ of $1.79$ ban-related bankruptcies would not have happened had rivals priced honestly; the one-period $W$ undercounts framing by a third. The median rule also allows framing once two sellers remain (Proposition~\ref{prop:vuln}(iii)), but jointly caused bankruptcies are fewer ($p_{\mathrm H}=0.045$).
+When every seller learns, framing needs long training (Figure~\ref{fig:attack}b): under the mean rule attributed bankruptcies rise from $0.51$ at $10^7$ steps to $1.27$ at $3\times10^8$ and level off ($1.34$ at $10^9$). The mean--median gap is significant at $10^9$ ($0.78$, 95\% CI $[0.48,1.09]$, $p_{\mathrm H}=0.006$) but not at $10^7$. The replay (Table~\ref{tab:replay}) shows that under the mean rule $1.34$ of $1.79$ ban-related bankruptcies would not have happened had rivals priced honestly; the one-period $W$ undercounts framing by a third. The median rule also allows framing once two sellers remain (Proposition~\ref{prop:vuln}(iii)), but jointly caused bankruptcies are fewer ($p_{\mathrm H}=0.045$).
 
 \begin{figure}[t]
 \centering
@@ -355,7 +340,8 @@ Hem Tilva & Sweep orchestration, analysis and plots, Extension A & \textit{[to b
 \bottomrule
 \end{tabularx}}
 
+{\small
 \bibliographystyle{unsrtnat}
-\bibliography{references}
+\bibliography{references}}
 
 \end{document}
