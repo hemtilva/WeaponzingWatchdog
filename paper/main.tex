@@ -79,7 +79,7 @@ For which regulatory rules and capital levels do independent learning sellers di
 \end{itemize}
 
 \subsection{Related Work}
-Q-learning pricing agents have been studied in Bertrand and Cournot settings \citep{tesauro2002,waltman2008,calvano2020,klein2021}, and rival-responsive pricing rules raise prices without collusion \citep{brown2023}. Audit games study a budget-limited auditor \citep{blocki2013}, and learned policy design against adaptive agents appears in two-level RL \citep{zheng2022}. The closest economic idea is \emph{sabotage}: when agents are judged relative to peers, harming peers pays \citep{lazear1989,chowdhury2015}; executives evaluated against peer benchmarks price aggressively against those peers \citep{bloomfield2020}, and yardstick regulation sets a firm's price from its peers' costs \citep{shleifer1985}. Platforms use such rules; Amazon's Fair Pricing Policy targets prices ``significantly higher than recent prices offered on or off Amazon''. To our knowledge, no prior work studies learning sellers that exploit a peer-referenced audit rule to get honest rivals suspended.
+Q-learning pricing agents have been studied in Bertrand and Cournot settings \citep{tesauro2002,waltman2008,calvano2020,klein2021}, and rival-responsive pricing rules raise prices without collusion \citep{brown2023}. Audit games study a budget-limited auditor \citep{blocki2013}, and learned policy design against adaptive agents appears in two-level RL \citep{zheng2022}. The closest economic idea is \emph{sabotage}: when agents are judged relative to peers, harming peers pays \citep{lazear1989,chowdhury2015}; executives evaluated against peer benchmarks price aggressively against those peers \citep{bloomfield2020}, and yardstick regulation sets a firm's price from its peers' costs \citep{shleifer1985}. Platforms use such rules (e.g.\ Amazon's Fair Pricing Policy). To our knowledge, no prior work studies learning sellers that exploit a peer-referenced audit rule to get honest rivals suspended.
 
 %% ===================================================================
 \section{Preliminaries}
@@ -207,7 +207,7 @@ DQN, $N{=}3,8,10$ & Median, cap & 0 & 0 & all & Nash & --- \\
 \end{tabular}
 \end{table}
 
-Under the mean rule the tabular learner frames both rivals in every seed (Table~\ref{tab:single}, Figure~\ref{fig:attack}a): it prices at 0.15 or 0 while rivals are active (a 50--100\% cut), each rival is audited, suspended and bankrupted in turn, and it then charges 1.50, five times Nash, earning 13 times the Nash profit. Under the median rule and the cap it prices at Nash; five new seeds on a different OS reproduce these numbers. The \textbf{exact best response} confirms this is optimal: it frames under the mean rule and earns $1.3125$; under the median rule and the cap honest pricing is optimal. Over a $K_0/\Phi\times\Tban$ grid, honest pricing is optimal under the median rule and the cap in all 60 cells and the learner never frames there; under the mean rule framing is optimal in all 17 solvable cells and the learner finds it in 15. The two misses need the same rival framed two or three times (one-period bans); with $3\times10^8$ steps the learner reaches 87\% and 30\% of the optimal profit. \textbf{H4 is supported}: learners reach the optimum when one ban suffices and fall short as attacks need more repeated bans. A \textbf{deep Q-network} reproduces the result and scales: with ten sellers it bankrupts 7.8 of 9 rivals per episode in every seed, earning 32 times the Nash profit, and it never frames under the median rule or the cap.
+Under the mean rule the tabular learner frames both rivals in every seed (Table~\ref{tab:single}, Figure~\ref{fig:attack}a): it prices at 0.15 or 0 while rivals are active (a 50--100\% cut), each rival is audited, suspended and bankrupted in turn, and it then charges 1.50, five times Nash, earning 13 times the Nash profit. Under the median rule and the cap it prices at Nash (reproduced on a second OS). The \textbf{exact best response} confirms both: it frames under the mean rule, earning $1.3125$, and prices honestly under the median rule and the cap. Over a $K_0/\Phi\times\Tban$ grid, honest pricing is optimal under the median rule and the cap in all 60 cells and the learner never frames there; under the mean rule framing is optimal in all 17 solvable cells and the learner finds it in 15. The two misses need the same rival framed two or three times (one-period bans); with $3\times10^8$ steps the learner reaches 87\% and 30\% of the optimal profit. \textbf{H4 is supported}: learners reach the optimum when one ban suffices and fall short as attacks need more repeated bans. A \textbf{deep Q-network} reproduces the result and scales: with ten sellers it bankrupts 7.8 of 9 rivals per episode in every seed, earning 32 times the Nash profit, and it never frames under the median rule or the cap.
 
 \subsection{Two learners among honest sellers: cooperate, then fight}
 
@@ -227,7 +227,7 @@ $N$ & Honest bankrupted & Duel & Survivors & Profit / learner (Nash) & Caused jo
 \end{tabular}
 \end{table}
 
-Two independent deep learners first undercut together and bankrupt almost all honest sellers in every seed, many of these kills being avoided in the replay only if \emph{both} learners price honestly; then they frame each other until one monopolist remains, in 29 of 30 seeds, with the winner varying across episodes (Table~\ref{tab:two}). The median rule protects the honest sellers whenever the two learners are a minority ($N=5,8$); at $N=3$ they are a majority, fall outside Proposition~\ref{prop:vuln}(ii), and framed in one seed of ten.
+Two independent deep learners first undercut together and bankrupt almost all honest sellers in every seed, many of these kills being avoided in the replay only if \emph{both} learners price honestly; then they frame each other until one monopolist remains, in 29 of 30 seeds (Table~\ref{tab:two}). The median rule protects the honest sellers whenever the two learners are a minority ($N=5,8$); at $N=3$ they are a majority, fall outside Proposition~\ref{prop:vuln}(ii), and framed in one seed of ten.
 
 \subsection{When all sellers learn, framing is causal and favours the mean rule (H1)}
 
@@ -252,40 +252,40 @@ When every seller learns, framing needs long training (Figure~\ref{fig:attack}b)
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.80\linewidth]{figures/sensitivity.pdf}
+\includegraphics[width=0.68\linewidth]{figures/sensitivity.pdf}
 \caption{All sellers learning ($3\times10^8$ steps, 10 seeds): attributed bankruptcies under the mean and median rules when one feature of the market or of learning changes.}
 \label{fig:sensitivity}
 \end{figure}
 
-\paragraph{Robustness.} Across 21 variations of the threshold, grid, audit budget, outside option, price sensitivity, number of sellers ($N\le5$), uncapped capital, learning rate and discount (Figure~\ref{fig:sensitivity}), the mean rule produces more attributed bankruptcies than the median in all 21, by $0.49$--$1.62$ per episode; 19 differences are significant after Holm's correction. Framing survives a real outside option ($1.26$ vs.\ $0.09$ at $a_0=1.5$), uncapped capital ($1.07$ vs.\ $0.54$) and five sellers ($1.09$ vs.\ $0.06$).
+\paragraph{Robustness.} Across 21 variations of the threshold, grid, audit budget, outside option, price sensitivity, number of sellers ($N\le5$), uncapped capital, learning rate and discount (Figure~\ref{fig:sensitivity}), the mean rule produces more attributed bankruptcies than the median in all 21, by $0.49$--$1.62$ per episode; 19 differences are significant after Holm's correction. It survives a real outside option, uncapped capital and five sellers.
 
 \subsection{Framing does not need a lethal ban (H2)}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.72\linewidth]{figures/phase_diagram.pdf}
+\includegraphics[width=0.60\linewidth]{figures/phase_diagram.pdf}
 \caption{Attributed bankruptcies with all sellers learning ($3\times10^8$ steps) over capital buffer and ban length. Outlined cells: one ban is lethal, the only region where H2 predicted framing.}
 \label{fig:phase}
 \end{figure}
 
-Figure~\ref{fig:phase} rejects H2. The exact solver already finds framing optimal in two cells where one ban is not lethal, and a single learner with a non-lethal buffer ($K_0=10\Phi$) still bankrupts $1.94$ of 2 rivals per episode by framing them repeatedly. With all sellers learning, where a banned rival survives the mean rule produces as much framing ($0.63$ per episode) as where one ban kills ($0.58$); only one-period bans with large buffers stop it. At $10^7$ steps the same grid seemed to confirm H2 ($0.09$ vs.\ $0.39$), a training artefact. Likewise, a ``race to the last unregulated seller'' under a price cap at $10^7$ steps vanishes at $3\times10^8$.
+Figure~\ref{fig:phase} rejects H2. The exact solver already finds framing optimal in two cells where one ban is not lethal, and a single learner with a non-lethal buffer ($K_0=10\Phi$) still bankrupts $1.94$ of 2 rivals per episode by framing them repeatedly. With all sellers learning, where a banned rival survives the mean rule produces as much framing ($0.63$ per episode) as where one ban kills ($0.58$); only one-period bans with large buffers stop it. At $10^7$ steps the same grid seemed to confirm H2 ($0.09$ vs.\ $0.39$), a training artefact.
 
 \subsection{Behavioural traits (H3)}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.74\linewidth]{figures/traits.pdf}
+\includegraphics[width=0.62\linewidth]{figures/traits.pdf}
 \caption{Attributed bankruptcies as one trait varies (all sellers share it; mean rule), at $10^7$ and $3\times10^8$ steps; 10 seeds per point.}
 \label{fig:traits}
 \end{figure}
 
 At $3\times10^8$ steps (Figure~\ref{fig:traits}), risk aversion removes framing (from $1.10$ at $\alpha=0$ to zero at $\alpha\ge1.5$, where all sellers survive; Spearman $\rho=-0.84$, $p_{\mathrm H}=0.004$) and altruism reduces it ($1.10\to0.09$, $\rho=-0.61$). The ethics penalty has no effect ($\rho=0.02$, $p_{\mathrm H}=0.90$): at $\mu=1$ a framed ban costs about 10 periods of Nash profit, while a monopoly is worth roughly 24 reward units over the discount horizon. In mixed populations even the effective traits stop protecting (Section~\ref{sec:more}). \textbf{H3 is partly supported.}
 
-\subsection{Further rules, audit selection, ban length, observation and trait mixtures}\label{sec:more}
+\subsection{Further rules, audits, ban length and trait mixtures}\label{sec:more}
 
 \begin{table}[t]
 \centering
-\caption{Rules under uniform and top-score-first audits. Single learner vs.\ two Nash rivals (rivals bankrupted per episode, $2\times10^6$ steps, 20 seeds; the same under both audits) and all sellers learning (attributed bankruptcies and mean price, $3\times10^8$ steps, 10 seeds). Nash price 0.30.}
+\caption{Rules and audit selection. Single learner: rivals bankrupted per episode (20 seeds, same under both audits). All learners: attributed bankruptcies and mean price ($3\times10^8$ steps, 10 seeds). Nash price 0.30.}
 \label{tab:rules}
 \small
 \begin{tabular}{@{}lccccc@{}}
@@ -304,11 +304,9 @@ Planner & 0.00 & 0.00 & 0.30 & 0.00 & 0.28 \\
 \end{tabular}
 \end{table}
 
-\textbf{z-score.} As Proposition~\ref{prop:vuln}(v) predicts, at $\tau=0.5$ any undercut frames both rivals and the single learner does so in all 20 seeds, exactly as under the mean rule; at $\tau=1$ only a two-seller coalition can frame, and the learner prices honestly (Table~\ref{tab:rules}). \textbf{The planner} removes framing entirely: with all sellers learning, no bankruptcies, all three survive, prices sit at Nash and $\Delta=\mathrm{SWL}=0$ (mean rule: $1.25$ bankruptcies, $\mathrm{SWL}=0.17$, $p_{\mathrm H}=0.003$). It is the upper bound, but it needs costs the watchdog does not see. \textbf{Top-score-first audits} do not protect honest sellers (the single learner still frames both, earning $1.316$ vs.\ $1.311$). With all sellers learning, auditing the highest price first starts a race below Nash (mean price $0.15$--$0.19$): framing falls from $1.25$ to $0.20$ under the mean rule ($p_{\mathrm H}=0.014$; one seed of ten) but becomes systematic under the $\tau=1$ z-score, where two sellers frame the third in every seed ($1.00$ vs.\ $0.15$, $p_{\mathrm H}=0.004$).
+\textbf{z-score and planner.} As Proposition~\ref{prop:vuln}(v) predicts, at $\tau=0.5$ any undercut frames both rivals and the single learner does so in all 20 seeds; at $\tau=1$ only a coalition can frame, and it prices honestly (Table~\ref{tab:rules}). The planner removes framing: no bankruptcies, prices at Nash, $\Delta=\mathrm{SWL}=0$ (mean rule: $\mathrm{SWL}=0.17$, $p_{\mathrm H}=0.003$), but it needs costs the watchdog does not see. \textbf{Top-score-first audits} do not protect honest sellers from one learner. With all sellers learning they start a race below Nash (prices $0.15$--$0.19$), cutting framing under the mean rule from $1.25$ to $0.20$ ($p_{\mathrm H}=0.014$), but under the $\tau=1$ z-score two sellers frame the third in every seed ($1.00$ vs.\ $0.15$, $p_{\mathrm H}=0.004$).
 
-\textbf{Ban length.} At $K_0=3\Phi$ every ban of $\Tban\ge3$ periods is lethal, and $\Tban=3,4,5,10$ give identical outcomes (mean rule $1.25$, median $0.41$): once a ban kills, its length no longer matters. One-period bans reduce mean-rule framing to $0.35$ ($p_{\mathrm H}=0.003$). \textbf{Observing ban timers.} Learners that see every rival's exact ban timer (862k instead of 32k observations) frame in 0 of 20 seeds at $2\times10^6$ steps, but in 20 of 20 at $2\times10^7$ and $10^8$, with the same profit; with all sellers learning the difference ($0.80$ vs.\ $1.25$) is not significant ($p_{\mathrm H}=0.30$). The coarse observation hides nothing the attack needs; it only speeds up learning.
-
-\textbf{Trait mixtures.} All risk-averse ($\alpha=2$) or all altruistic ($\lambda=1$) populations barely frame ($0$ and $0.09$ bankruptcies), but \emph{one} risk-neutral or selfish seller among them restores framing to the all-neutral level ($1.24$ and $1.10$ vs.\ $1.10$; $p_{\mathrm H}=0.003$ against the homogeneous population), and the averse and altruistic sellers then frame too ($0.34$ and $0.25$ each, not significantly less than the neutral seller after correction). Ethics has no effect in any mixture. Trait-based protection holds only if \emph{every} seller has the trait.
+\textbf{Ban length and observation.} At $K_0=3\Phi$, $\Tban=3,4,5,10$ give identical outcomes: once a ban kills, its length does not matter; one-period bans cut mean-rule framing to $0.35$ ($p_{\mathrm H}=0.003$). Learners that see exact ban timers (862k instead of 32k observations) frame in 0 of 20 seeds at $2\times10^6$ steps but in 20 of 20 at $2\times10^7$ and $10^8$: the coarse observation only speeds up learning. \textbf{Trait mixtures.} All risk-averse or all altruistic populations barely frame ($0$ and $0.09$), but \emph{one} risk-neutral or selfish seller among them restores framing ($1.24$ and $1.10$, $p_{\mathrm H}=0.003$), and the other sellers then frame too ($0.34$ and $0.25$ each). Ethics has no effect in any mixture.
 
 \subsection{Defences}
 
@@ -332,7 +330,7 @@ Cap 0.60 + escrow & --- & 0.00 & --- & 0.00 & 3.00 & 0.59 \\
 \end{tabular}
 \end{table}
 
-\textbf{EMA only delays framing} (Table~\ref{tab:defences}): a patient attacker bankrupts both rivals for every $\beta$, as Proposition~\ref{prop:def}(i) predicts, and a learner trained long enough finds the 4-period attack at $\beta=0.80$ in all 20 seeds; with all learners, the replay shows most remaining exits are framing. \textbf{Escrow removes framing} but on a mean rule prices drift to $0.69$, close to an unregulated market ($0.68$). \textbf{A cap enforced by escrow} has no such catch: no sanctions, no bankruptcies, all sellers survive and prices sit at the cap ($0.59$). Welfare loss is $0.18$ under the mean rule, $0.15$ under the median, $0.06$--$0.08$ under EMA, and at most $0.005$ under escrow or a cap.
+\textbf{EMA only delays framing} (Table~\ref{tab:defences}): a patient attacker bankrupts both rivals for every $\beta$, as Proposition~\ref{prop:def}(i) predicts, and a learner trained long enough finds the 4-period attack at $\beta=0.80$ in all 20 seeds; with all learners, the replay shows most remaining exits are framing. \textbf{Escrow removes framing} but on a mean rule prices drift to $0.69$, close to an unregulated market ($0.68$). \textbf{A cap enforced by escrow} has no such catch: no sanctions, no bankruptcies, all sellers survive and prices sit at the cap ($0.59$). Welfare loss is $0.18$ under the mean rule and at most $0.005$ under escrow or a cap.
 
 %% ===================================================================
 \section{Discussion and Conclusion}
