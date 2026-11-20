@@ -63,7 +63,7 @@ Marketplaces suspend sellers whose prices look abnormal relative to the market. 
 
 \paragraph{A motivating scenario.} Three sellers offer similar products on an online platform, which suspends any seller priced more than 10\% above the current market average. Seller A, run by a learning algorithm, discovers that if it drops its price for a few periods, the average falls and Seller B's ordinary price now looks like gouging. B is suspended, cannot cover its fixed costs, and goes bankrupt; A raises its price and keeps the customers. A never broke a rule, yet the rule was used as a weapon.
 
-\paragraph{Why this matters.} Pricing is increasingly delegated to reinforcement-learning algorithms, which can learn supra-competitive prices without communicating \citep{calvano2020,klein2021,assad2024}, and competition authorities are considering automated supervision in response \citep{harrington2018}. Economic theory points to a risk beyond collusion, \emph{raising rivals' costs} \citep{salop1983}: a rule that punishes rivals can be used to eliminate them.
+\paragraph{Why this matters.} Pricing is increasingly delegated to reinforcement-learning algorithms, which can learn supra-competitive prices without communicating \citep{calvano2020}, and competition authorities are considering automated supervision in response. Economic theory points to a risk beyond collusion, \emph{raising rivals' costs} \citep{salop1983}: a rule that punishes rivals can be used to eliminate them.
 
 \paragraph{Research question.}
 \begin{quote}\itshape
@@ -79,11 +79,11 @@ For which regulatory rules and capital levels do independent learning sellers di
 \end{itemize}
 
 \subsection{Related Work}
-Q-learning pricing agents have been studied in Bertrand settings \citep{calvano2020,klein2021}, and rival-responsive pricing rules raise prices without collusion \citep{brown2023}. Audit games study a budget-limited auditor \citep{blocki2013}, and learned policy design against adaptive agents appears in two-level RL \citep{zheng2022}. The closest economic idea is \emph{sabotage}: when agents are judged relative to peers, harming peers pays \citep{lazear1989,chowdhury2015}; executives evaluated against peer benchmarks price aggressively against those peers \citep{bloomfield2020}, and yardstick regulation sets a firm's price from its peers' costs \citep{shleifer1985}. Platforms use such rules (e.g.\ Amazon's Fair Pricing Policy). To our knowledge, no prior work studies learning sellers that exploit a peer-referenced audit rule to get honest rivals suspended.
+Q-learning pricing agents have been studied in Bertrand settings \citep{calvano2020}, and audit games study a budget-limited auditor \citep{blocki2013}. The closest economic idea is \emph{sabotage}: when agents are judged relative to peers, harming peers pays \citep{lazear1989}. Platforms use peer-referenced price rules (e.g.\ Amazon's Fair Pricing Policy). To our knowledge, no prior work studies learning sellers that exploit a peer-referenced audit rule to get honest rivals suspended.
 
 %% ===================================================================
 \section{Preliminaries}
-We use discrete-time Markov games \citep{littman1994} with a logit oligopoly \citep{anderson1992}.
+We use discrete-time Markov games \citep{littman1994} with a logit oligopoly.
 
 \subsection{Notation}
 \begin{itemize}
@@ -323,7 +323,7 @@ Cap 0.60 + escrow & --- & 0.00 & --- & 0.00 & 3.00 & 0.59 \\
 
 A watchdog whose benchmark is computed from the prices it judges gives every seller a lever over its rivals' treatment, and independent learners, tabular or deep, alone or several, find and use it. In summary, \textbf{H1 is supported} with one caveat (the median rule fails when attackers are a majority), \textbf{H2 is rejected}, \textbf{H3 is partly supported} (no effect of the ethics penalty) and \textbf{H4 is supported}. A median benchmark removes the lever while attackers are a minority; a z-score benchmark is as exploitable as the mean unless its threshold exceeds what one undercutter can produce; auditing the most suspicious seller first replaces framing by a price war; smoothing the benchmark only slows the attack; a fixed cap enforced by fines rather than suspensions removes it and still holds prices down, approaching the planner, which judges each price against that seller's own costs. Short training repeatedly gave the wrong picture, understating framing and making H2 look true.
 
-\paragraph{Limitations and future work.} The market is synthetic and not calibrated to a platform, although the main comparison survives changes to demand, capital and learning parameters. Tabular all-learner studies are limited to $N\le5$; deep learners reach $N=10$, but we have run at most two at once. Independent learners with non-Markov observations do not reach equilibria \citep{busoniu2008}, the exact benchmark covers one learner in cells where a ban is lethal or nearly so, and all-learner studies use 10 seeds (single learners 20). Future work: markets where every seller is a deep learner (a vectorised GPU simulator is implemented on the repository's \texttt{gpu-vectorized} branch), honest sellers that defend themselves, and the proposal's learning regulator.
+\paragraph{Limitations and future work.} The market is synthetic and not calibrated to a platform, although the main comparison survives changes to demand, capital and learning parameters. Tabular all-learner studies are limited to $N\le5$; deep learners reach $N=10$, but we have run at most two at once. Independent learners with non-Markov observations need not reach equilibria, the exact benchmark covers one learner in cells where a ban is lethal or nearly so, and all-learner studies use 10 seeds (single learners 20). Future work: markets where every seller is a deep learner (a vectorised GPU simulator is implemented on the repository's \texttt{gpu-vectorized} branch), honest sellers that defend themselves, and the proposal's learning regulator.
 
 \paragraph{Code and reproducibility.} Code, results and figure scripts: \url{https://github.com/hemtilva/WeaponzingWatchdog}. Every table and figure is produced by a script listed in the README, with results under \texttt{results/}. An extended report with every study, validation test and additional analysis is in \texttt{paper/main\_extended.tex} and \texttt{FINAL\_REPORT.md}.
 
