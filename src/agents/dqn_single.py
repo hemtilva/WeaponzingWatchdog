@@ -54,8 +54,9 @@ class QNet(nn.Module):
 
 class DQNSingleSeller:
     def __init__(self, trainer, cfg: DQNSingleConfig):
-        """`trainer` is a MultiAgentTrainer built for the market (experiments.common.build);
-        its policies for sellers 1..N-1 are used as the fixed rivals."""
+        """`trainer` is a MultiAgentTrainer built for the market (experiments.common.build), or
+        the lightweight object from make_market(); its policies for sellers 1..N-1 are the
+        fixed rivals."""
         self.cfg = cfg
         self.engine = ReplayEngine(trainer)
         self.N = self.engine.N
@@ -176,3 +177,30 @@ class DQNSingleSeller:
         out.update({f"replay_{k}": v for k, v in attribute(eng, episodes=attribution_episodes,
                                                            seed=cfg.seed).items()})
         return out
+
+
+def make_market(num_firms: int, rule: int, rule_param: float, fixed_cost: float, initial_capital: float,
+                ban_duration: int = 4, n_min: int = 2, price_levels: int = 11, grid_max: float = 1.5,
+                penalty_mode: str = "shutdown", ema_beta: float = 0.95):
+    """A market object for ReplayEngine without the tabular trainer.
+
+    MultiAgentTrainer allocates a tabular Q-table for every seller (M^N 2^N 3 entries), which
+    is impossible for large N. A DQN seller needs none of that: this builds the same market
+    (framing_market), the grid Nash prices, and Nash policies for every seller.
+    """
+    from types import SimpleNamespace
+    from src.benchmarks.diagnostics import framing_market
+    from src.benchmarks.nash import find_discrete_nash_equilibrium
+    from src.engine.rules import RuleType
+    m = framing_market(num_firms=num_firms, threshold_delta=rule_param if rule != RuleType.PRICE_CAP else 0.10,
+                       ban_duration=ban_duration, fixed_cost=fixed_cost, initial_capital=initial_capital)
+    m.min_active_for_audit = n_min
+    grid = np.linspace(0.0, grid_max, price_levels)
+    nash_p, nash_pi = find_discrete_nash_equilibrium(grid, m.marginal_costs, m.qualities, m.outside_option,
+                                                     m.price_sensitivity, m.market_size)
+    nash_idx = np.array([int(np.argmin(np.abs(grid - p))) for p in nash_p])
+    cfg = SimpleNamespace(rule_type=RuleType(rule), rule_param=rule_param, ema_beta=ema_beta,
+                          penalty_mode=penalty_mode)
+    return SimpleNamespace(N=num_firms, m_cfg=m, price_grid=grid, nash_idx=nash_idx,
+                           nash_prices=np.asarray(nash_p), nash_profits=np.asarray(nash_pi), cfg=cfg,
+                           policies=["nash"] * num_firms, mono_idx=np.full(num_firms, price_levels - 1))
