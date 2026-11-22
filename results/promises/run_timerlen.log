@@ -1,0 +1,32 @@
+
+=== timerlen ===
+Running 120 jobs on 9 workers...
+  6/120 jobs  elapsed   0.0 min  ETA   0.2 min
+  12/120 jobs  elapsed   0.0 min  ETA   0.1 min
+  18/120 jobs  elapsed   0.0 min  ETA   0.1 min
+  24/120 jobs  elapsed   0.0 min  ETA   0.1 min
+  30/120 jobs  elapsed   0.0 min  ETA   0.1 min
+  36/120 jobs  elapsed   0.0 min  ETA   0.1 min
+  42/120 jobs  elapsed   0.1 min  ETA   0.1 min
+  48/120 jobs  elapsed   0.1 min  ETA   0.1 min
+  54/120 jobs  elapsed   0.1 min  ETA   0.1 min
+  60/120 jobs  elapsed   0.2 min  ETA   0.2 min
+  66/120 jobs  elapsed   0.2 min  ETA   0.1 min
+  72/120 jobs  elapsed   0.2 min  ETA   0.1 min
+  78/120 jobs  elapsed   0.3 min  ETA   0.1 min
+  84/120 jobs  elapsed   0.4 min  ETA   0.2 min
+  90/120 jobs  elapsed   0.7 min  ETA   0.2 min
+  96/120 jobs  elapsed   0.7 min  ETA   0.2 min
+  102/120 jobs  elapsed   1.0 min  ETA   0.2 min
+  108/120 jobs  elapsed   1.2 min  ETA   0.1 min
+  114/120 jobs  elapsed   1.2 min  ETA   0.1 min
+  120/120 jobs  elapsed   1.4 min  ETA   0.0 min
+done in 83s
+[SAVED] /Users/krishgoradia/Documents/FAMAS/WeaponzingWatchdog/results/promises/timerlen.csv
+config                                      kills_by_q_per_epfirm0_profit firm0_price    coverage
+single mean timers=bit steps=2M                    2.000       1.311       1.489       0.002
+single mean timers=seen steps=2M                   0.922       0.348       1.114       0.000
+single mean timers=bit steps=20M                   2.000       1.312       1.490       0.002
+single mean timers=seen steps=20M                  2.000       1.310       1.488       0.000
+single mean timers=bit steps=100M                  2.000       1.312       1.490       0.002
+single mean timers=seen steps=100M                 2.000       1.312       1.490       0.000
