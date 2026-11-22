@@ -19,6 +19,15 @@
 \usepackage{tabularx}
 \setlist{nosep,leftmargin=*}
 
+% Layout: no vertical stretching between paragraphs (arxiv.sty sets \flushbottom),
+% tighter space around floats, compact bibliography.
+\raggedbottom
+\setlength{\textfloatsep}{8pt plus 2pt minus 2pt}
+\setlength{\floatsep}{6pt plus 2pt minus 2pt}
+\setlength{\intextsep}{6pt plus 2pt minus 2pt}
+\setlength{\bibsep}{1pt plus 0.5pt}
+\renewcommand{\bibfont}{\small}
+
 \newtheorem{proposition}{Proposition}
 \newcommand{\Nact}{N_{\mathrm{act},t}}
 \newcommand{\Nmin}{N_{\min}}
@@ -252,7 +261,7 @@ When every seller learns, framing needs long training (Figure~\ref{fig:attack}b)
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.80\linewidth]{figures/sensitivity.pdf}
+\includegraphics[width=0.70\linewidth]{figures/sensitivity.pdf}
 \caption{All sellers learning ($3\times10^8$ steps, 10 seeds): attributed bankruptcies under the mean and median rules when one feature of the market or of learning changes.}
 \label{fig:sensitivity}
 \end{figure}
@@ -263,7 +272,7 @@ When every seller learns, framing needs long training (Figure~\ref{fig:attack}b)
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.72\linewidth]{figures/phase_diagram.pdf}
+\includegraphics[width=0.64\linewidth]{figures/phase_diagram.pdf}
 \caption{Attributed bankruptcies with all sellers learning ($3\times10^8$ steps) over capital buffer and ban length. Outlined cells: one ban is lethal, the only region where H2 predicted framing.}
 \label{fig:phase}
 \end{figure}
@@ -274,7 +283,7 @@ Figure~\ref{fig:phase} rejects H2. The exact solver already finds framing optima
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.74\linewidth]{figures/traits.pdf}
+\includegraphics[width=0.66\linewidth]{figures/traits.pdf}
 \caption{Attributed bankruptcies as one trait varies (all sellers share it; mean rule), at $10^7$ and $3\times10^8$ steps; 10 seeds per point.}
 \label{fig:traits}
 \end{figure}
