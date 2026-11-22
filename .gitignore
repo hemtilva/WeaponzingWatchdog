@@ -39,3 +39,19 @@ data/
 # Smoke-test outputs
 plots/*_quick.png
 plots/*_legacyreset.png
+
+# AI coding-assistant files (not part of the project)
+.agents/
+.codex/
+.codex-attachments/
+agent_guidelines/
+.claude/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+.cursor/
+.cursorrules
+.windsurf/
+.windsurfrules
+.aider*
+.github/copilot-instructions.md

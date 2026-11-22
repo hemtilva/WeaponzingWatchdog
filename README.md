@@ -223,10 +223,6 @@ The computational pipeline uses a dual-backend architecture designed for maximum
 WeaponzingWatchdog/
 ├── Proposal_Report.pdf              # Academic proposal and technical specification
 ├── README.md                        # Technical documentation and mathematical model
-├── agent_guidelines/                # Developer and agent implementation specifications
-│   ├── README.md                    # Guideline index and protocol
-│   ├── 01_theory_and_formulation.md # Game dynamics, Proposition 1, traits, metrics
-│   └── 02_architecture_and_implementation.md # Dual-backend, DP, Q-learning, sweeps
 ├── pyproject.toml
 ├── src/
 │   ├── csrc/
