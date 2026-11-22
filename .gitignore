@@ -18,6 +18,7 @@ venv/
 env/
 .env/
 .venv/
+.venv-gpu/
 
 # IDE and editors
 .vscode/
@@ -58,3 +59,6 @@ GEMINI.md
 
 # Overleaf upload bundle (built locally)
 *_overleaf.zip
+
+# Run logs under results/ document how each result was produced: keep them
+!results/**/*.log
