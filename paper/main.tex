@@ -143,7 +143,7 @@ with CRRA utility $U_\alpha$, $\varepsilon=0.01$, and $\Charm(i,t)$ the number o
 
 \subsection{Evaluation Quantities}
 \begin{itemize}
-\item \textbf{Weaponization rate $W$:} the share of fresh bans that a rival's price caused, in the one-period sense that the flag disappears if that rival priced at Nash.
+\item \textbf{Weaponization rate $W$:} the share of fresh bans that a rival's price caused, in the one-period sense that the flag disappears if that rival priced at Nash. Before using it on learners we validated it on a scripted attacker against Nash rivals: $W\ge0.8$ under the mean rule, $W=0$ under the median rule and the cap, every attributed bankruptcy credited to the attacker and none to honest sellers.
 \item \textbf{Caused bankruptcies (primary metric):} a bankruptcy during a ban is \emph{caused} by rivals if, in a replay of the episode with the same random audits, the victim would have survived the episode had the rival (or all rivals jointly) priced at Nash (Section~\ref{sec:method}).
 \item Also: bankruptcies and survivors per episode, prices, profit, $\Delta$ and $\mathrm{SWL}$.
 \end{itemize}
@@ -264,7 +264,7 @@ EMA $\beta{=}0.95$ & 0.76\se{0.26} & 0.64\se{0.24} & 0.64\se{0.25} & 0.15 & 0.49
 \end{tabular}
 \end{table}
 
-When every seller learns, framing needs long training (Figure~\ref{fig:attack}b): under the mean rule attributed bankruptcies rise from $0.51$ at $10^7$ steps to $1.27$ at $3\times10^8$ and level off ($1.34$ at $10^9$). The mean--median gap is not significant at $10^7$ ($p_{\mathrm H}=0.14$) but is at $10^9$ ($0.78$, 95\% CI $[0.48,1.09]$, $p_{\mathrm H}=0.006$). The replay (Table~\ref{tab:replay}) shows that under the mean rule $1.34$ of $1.79$ ban-related bankruptcies would not have happened had rivals priced honestly; the one-period $W$ undercounts framing by a third. The median rule also allows framing once two sellers remain (Proposition~\ref{prop:vuln}(iii)), but jointly caused bankruptcies are fewer ($p_{\mathrm H}=0.045$).
+When every seller learns, framing needs long training (Figure~\ref{fig:attack}b): under the mean rule attributed bankruptcies rise from $0.51$ at $10^7$ steps to $1.27$ at $3\times10^8$ and level off ($1.34$ at $10^9$). Exploration has saturated by then: each learner has visited about 7{,}040 of its 31{,}944 observations at $10^8$ steps, 7{,}320 at $3\times10^8$ and 7{,}480 at $10^9$, so further training adds almost no new states and the outcome is not an artefact of too little exploration. Against Nash rivals only a few dozen observations are reachable (21--112), and the single learner explores all it needs to reach the exact optimum. The mean--median gap is not significant at $10^7$ ($p_{\mathrm H}=0.14$) but is at $10^9$ ($0.78$, 95\% CI $[0.48,1.09]$, $p_{\mathrm H}=0.006$). The replay (Table~\ref{tab:replay}) shows that under the mean rule $1.34$ of $1.79$ ban-related bankruptcies would not have happened had rivals priced honestly; the one-period $W$ undercounts framing by a third. The median rule also allows framing once two sellers remain (Proposition~\ref{prop:vuln}(iii)), but jointly caused bankruptcies are fewer ($p_{\mathrm H}=0.045$).
 
 \begin{figure}[t]
 \centering
@@ -273,7 +273,7 @@ When every seller learns, framing needs long training (Figure~\ref{fig:attack}b)
 \label{fig:sensitivity}
 \end{figure}
 
-\paragraph{Robustness.} Across 21 variations of the threshold, grid, audit budget, outside option, price sensitivity, number of sellers ($N\le5$), uncapped capital, learning rate and discount (Figure~\ref{fig:sensitivity}), the mean rule produces more attributed bankruptcies than the median in all 21, by $0.49$--$1.62$ per episode; 19 differences are significant after Holm's correction. Framing survives a real outside option ($1.26$ vs.\ $0.09$ at $a_0=1.5$), uncapped capital ($1.07$ vs.\ $0.54$) and five sellers ($1.09$ vs.\ $0.06$).
+\paragraph{Robustness.} Across 21 variations of the threshold, grid, audit budget, outside option, price sensitivity, number of sellers ($N\le5$), uncapped capital, learning rate and discount (Figure~\ref{fig:sensitivity}), the mean rule produces more attributed bankruptcies than the median in all 21, by $0.49$--$1.62$ per episode; 19 differences are significant after Holm's correction. Framing survives a real outside option ($1.26$ vs.\ $0.09$ at $a_0=1.5$), uncapped capital ($1.07$ vs.\ $0.54$) and five sellers ($1.09$ vs.\ $0.06$). A single learner with $N=5$ bankrupts all four rivals in every seed under the mean rule (26 times the Nash profit) and none under the median rule. In the proposal's original setting ($N=4$, $\Nmin=3$), the mean rule still causes three times as much framing as the median ($0.55$ vs.\ $0.18$, $p_{\mathrm H}=0.026$).
 
 \subsection{Framing does not need a lethal ban (H2)}
 
