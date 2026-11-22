@@ -144,6 +144,7 @@ with CRRA utility $U_\alpha$, $\varepsilon=0.01$, and $\Charm(i,t)$ the number o
 \subsection{Evaluation Quantities}
 \begin{itemize}
 \item \textbf{Weaponization rate $W$:} the share of fresh bans that a rival's price caused, in the one-period sense that the flag disappears if that rival priced at Nash. Before using it on learners we validated it on a scripted attacker against Nash rivals: $W\ge0.8$ under the mean rule, $W=0$ under the median rule and the cap, every attributed bankruptcy credited to the attacker and none to honest sellers.
+\item \textbf{Attributed bankruptcies:} bankruptcies during a ban whose flag the one-period test above credits to a rival (alone or jointly). They are computed in every evaluation episode, so the large sweeps (Figures~\ref{fig:attack}b, \ref{fig:sensitivity}--\ref{fig:traits}) report them; the replay below is costlier and is run on the key comparisons, where it finds \emph{more} framing (Table~\ref{tab:replay}), so attributed bankruptcies are a conservative count.
 \item \textbf{Caused bankruptcies (primary metric):} a bankruptcy during a ban is \emph{caused} by rivals if, in a replay of the episode with the same random audits, the victim would have survived the episode had the rival (or all rivals jointly) priced at Nash (Section~\ref{sec:method}).
 \item Also: bankruptcies and survivors per episode, prices, profit, $\Delta$ and $\mathrm{SWL}$.
 \end{itemize}
@@ -182,7 +183,7 @@ with CRRA utility $U_\alpha$, $\varepsilon=0.01$, and $\Charm(i,t)$ the number o
 \end{proposition}
 With $L=0.15$, $H=0.30$, $t^\ast$ is 4, 16 and 79 periods for $\beta=0.80, 0.95, 0.99$.
 
-\paragraph{Experimental design.} Baseline market: $N=3$, $M=11$ prices on $[0,1.5]$, $a_i=2$, $a_0=0$, $c_i=0$, $\sigma=0.25$, $\Phi=0.05$, $K_0=0.15$, $\Tban=4$ (one ban is lethal), $\delta=0.10$, $\Nmin=2$; the grid Nash price is $0.30$ with profit $0.100$. Single learners train for $2\times10^6$ steps, all-learner markets for $3\times10^8$ (up to $10^9$), with 10--20 seeds per condition. Key comparisons report 95\% bootstrap intervals and permutation tests with Holm's correction ($p_{\mathrm H}$) across 36 comparisons. A second family of 28 comparisons covers Section~\ref{sec:more}. Changes from the proposal: $\Nmin=3\to2$ (otherwise the first exit switches the watchdog off) and the DP solver was replaced.
+\paragraph{Experimental design.} Baseline market: $N=3$, $M=11$ prices on $[0,1.5]$, $a_i=2$, $a_0=0$, $c_i=0$, $\sigma=0.25$, $\Phi=0.05$, $K_0=0.15$, $\Tban=4$ (one ban is lethal), $\delta=0.10$, $\Nmin=2$; the grid Nash price is $0.30$ with profit $0.100$. Single learners train for $2\times10^6$ steps, all-learner markets for $3\times10^8$ (up to $10^9$), with 10--20 seeds per condition. Key comparisons report 95\% bootstrap intervals and permutation tests with Holm's correction ($p_{\mathrm H}$) across 36 comparisons. A second family of 28 comparisons covers Section~\ref{sec:more}. Changes from the proposal: $\Nmin=3\to2$ (otherwise the first exit switches the watchdog off) and the DP solver was replaced. Extensions A (learning regulator) and B (demand shocks) were implemented early but not rerun after the fixes to the learning dynamics (Section~\ref{sec:disc}), so we do not report them; their code is kept in the repository's \texttt{archive/}.
 
 %% ===================================================================
 \section{Results}
@@ -198,7 +199,7 @@ With $L=0.15$, $H=0.30$, $t^\ast$ is 4, 16 and 79 periods for $\beta=0.80, 0.95,
 
 \begin{table}[t]
 \centering
-\caption{One learner against Nash rivals. Mean (standard error) over 20 seeds (tabular, $N=3$) or 10 seeds (DQN). ``Exact'': the optimal profit from the exact best response. Nash profit $0.100$ at $N=3$, $0.0375$ at $N=8$, $0.030$ at $N=10$.}
+\caption{One learner against Nash rivals. Mean (standard error) over 20 seeds (tabular, $N=3$) or 10 seeds (DQN). ``Exact'': the optimal profit from the exact best response. ``Caused'' is measured on 5 replayed episodes per seed, the other columns on 100, so the two can differ slightly ($N{=}8$: 6.34 of the 6.44 replayed bankruptcies are caused). Nash profit $0.100$ at $N=3$, $0.0375$ at $N=8$, $0.030$ at $N=10$.}
 \label{tab:single}
 \small
 \begin{tabular}{@{}llccccc@{}}
@@ -328,7 +329,7 @@ Planner & 0.00 & 0.00 & 0.30 & 0.00 & 0.28 \\
 
 \begin{table}[t]
 \centering
-\caption{Defences. Rival exits per episode against a scripted patient attacker (holds 0.15) and a single learner; all bankruptcies (not only attributed), survivors and mean price with all three sellers learning ($3\times10^8$ steps). Nash price 0.30.}
+\caption{Defences. Rival exits per episode against a scripted patient attacker (holds 0.15) and a single learner; all bankruptcies (not only attributed), survivors and mean price with all three sellers learning ($3\times10^8$ steps, 10 seeds; standard errors in parentheses). Patient-attacker and single-learner outcomes are identical in every seed. Nash price 0.30.}
 \label{tab:defences}
 \small
 \begin{tabular}{@{}lcccccc@{}}
@@ -337,11 +338,11 @@ Planner & 0.00 & 0.00 & 0.30 & 0.00 & 0.28 \\
 \cmidrule(lr){2-2}\cmidrule(lr){3-4}\cmidrule(lr){5-7}
 Rule & rival exits & $2\times10^6$ & $3\times10^8$ & bankruptcies & survivors & price \\
 \midrule
-Mean & 2.00 & 2.00 & 2.00 & 2.08 & 0.92 & 1.44 \\
-EMA $\beta{=}0.80$ & 2.00 & 0.00 & 2.00 & 0.72 & 2.28 & 0.50 \\
-EMA $\beta{=}0.95$ & 2.00 & 0.00 & 0.00 & 1.00 & 2.00 & 0.63 \\
-Mean + escrow & 0.00 & 0.00 & 0.00 & 0.00 & 3.00 & 0.69 \\
-Cap 0.60 + escrow & --- & 0.00 & --- & 0.00 & 3.00 & 0.59 \\
+Mean & 2.00 & 2.00 & 2.00 & 2.08\se{0.02} & 0.92\se{0.02} & 1.44\se{0.01} \\
+EMA $\beta{=}0.80$ & 2.00 & 0.00 & 2.00 & 0.72\se{0.29} & 2.28\se{0.29} & 0.50\se{0.16} \\
+EMA $\beta{=}0.95$ & 2.00 & 0.00 & 0.00 & 1.00\se{0.33} & 2.00\se{0.33} & 0.63\se{0.17} \\
+Mean + escrow & 0.00 & 0.00 & 0.00 & 0.00 & 3.00 & 0.69\se{0.03} \\
+Cap 0.60 + escrow & --- & 0.00 & --- & 0.00 & 3.00 & 0.59\se{0.01} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -349,7 +350,7 @@ Cap 0.60 + escrow & --- & 0.00 & --- & 0.00 & 3.00 & 0.59 \\
 \textbf{EMA only delays framing} (Table~\ref{tab:defences}): a patient attacker bankrupts both rivals for every $\beta$, as Proposition~\ref{prop:def}(i) predicts, and a learner trained long enough finds the 4-period attack at $\beta=0.80$ in all 20 seeds; with all learners, the replay shows most remaining exits are framing. \textbf{Escrow removes framing} but on a mean rule prices drift to $0.69$, close to an unregulated market ($0.68$). \textbf{A cap enforced by escrow} has no such catch: no sanctions, no bankruptcies, all sellers survive and prices sit at the cap ($0.59$). Welfare loss is $0.17$--$0.18$ under the mean rule (two seed sets), $0.15$ under the median, $0.06$--$0.08$ under EMA, and at most $0.005$ under escrow or a cap.
 
 %% ===================================================================
-\section{Discussion and Conclusion}
+\section{Discussion and Conclusion}\label{sec:disc}
 
 
 A watchdog whose benchmark is computed from the prices it judges gives every seller a lever over its rivals' treatment, and independent learners, tabular or deep, alone or several, find and use it. In summary, \textbf{H1 is supported} with one caveat (the median rule fails when attackers are a majority), \textbf{H2 is rejected}, \textbf{H3 is partly supported} (the ethics penalty works only at $\mu=10$) and \textbf{H4 is supported}. A median benchmark removes the lever while attackers are a minority; a z-score benchmark is as exploitable as the mean unless its threshold exceeds what one undercutter can produce; auditing the most suspicious seller first replaces framing by a price war; smoothing the benchmark only slows the attack; a fixed cap enforced by fines rather than suspensions removes it and still holds prices down, approaching the planner, which judges each price against that seller's own costs. Short training repeatedly gave the wrong picture, understating framing and making H2 look true.
