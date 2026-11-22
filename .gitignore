@@ -62,3 +62,7 @@ GEMINI.md
 
 # Run logs under results/ document how each result was produced: keep them
 !results/**/*.log
+
+# Local-only archive of superseded code/plots (in git history), and plot output folder
+archive/
+plots/

@@ -7,7 +7,7 @@
 
 **Project type:** Computational study of strategic interaction and multi-agent learning
 
-> **Status (20 November 2026).** The LaTeX paper in [`paper/main.tex`](paper/main.tex) is the authoritative and most recent write-up. This report keeps the detailed record of the earlier studies; results added later (exact best response, but-for replay attribution, the 300M-step phase diagram and robustness grid, the sensitivity sweep) are summarised in the addendum (Section 5.7), and two earlier claims are corrected there and where they appear below.
+> **Status (20 November 2026).** The LaTeX paper in [`paper/main.tex`](../paper/main.tex) is the authoritative and most recent write-up. This report keeps the detailed record of the earlier studies; results added later (exact best response, but-for replay attribution, the 300M-step phase diagram and robustness grid, the sensitivity sweep) are summarised in the addendum (Section 5.7), and two earlier claims are corrected there and where they appear below.
 
 ## Abstract
 
@@ -111,7 +111,7 @@ Seed-level runs are the units summarized below. Episodes within one frozen-polic
 
 ### 3.3 Validating the measures on a scripted attacker
 
-Before applying W and the bankruptcy attribution to learners, we checked them against a scripted attacker whose behavior is known. The attacker prices at zero whenever at least N_min firms are active and at the monopoly price otherwise. Its rivals price at Nash. The test suite ([test_scripted_attacker.py](tests/test_scripted_attacker.py), [test_framing_mechanics.py](tests/test_framing_mechanics.py)) checks that:
+Before applying W and the bankruptcy attribution to learners, we checked them against a scripted attacker whose behavior is known. The attacker prices at zero whenever at least N_min firms are active and at the monopoly price otherwise. Its rivals price at Nash. The test suite ([test_scripted_attacker.py](../tests/test_scripted_attacker.py), [test_framing_mechanics.py](../tests/test_framing_mechanics.py)) checks that:
 
 - under the mean rule, the attacker causes bans, and W is at least 0.80;
 - under the median rule (N = 3 and N = 4) and under a price cap, the same attacker causes no bans, and W is 0;
@@ -141,11 +141,11 @@ We additionally reran the same five conditions with five new seeds, 9020–9024.
 | Median, δ = 0.10, lethal | — | 0.000 (0.000) | 0.000 (0.000) | 3.000 (0.000) | 0.100 (0.000) |
 | Cap = 0.60, lethal | — | 0.000 (0.000) | 0.000 (0.000) | 3.000 (0.000) | 0.100 (0.000) |
 
-*Table 1. Means across 20 seeds from [study_single.csv](results/Krishs-MacBook-Air/all/study_single.csv), with standard errors across seeds (sample standard deviation divided by √n) in parentheses. A standard error of 0.000 means every seed produced the same value to three decimals. A dash indicates no bans, for which W's denominator is zero. The simulator stores W = 0 in these cases. Counts are per episode; profit averages over evaluation periods.*
+*Table 1. Means across 20 seeds from [study_single.csv](../results/Krishs-MacBook-Air/all/study_single.csv), with standard errors across seeds (sample standard deviation divided by √n) in parentheses. A standard error of 0.000 means every seed produced the same value to three decimals. A dash indicates no bans, for which W's denominator is zero. The simulator stores W = 0 in these cases. Counts are per episode; profit averages over evaluation periods.*
 
 The mean-rule outcomes are consistent with the model's framing mechanism against these fixed rivals. In the δ = 0.10 lethal condition, the learner's mean operating profit of 1.312 is higher than the initial three-firm Nash operating-profit benchmark of 0.100; these quantities describe different market structures and are not a matched counterfactual estimate of net profit. It is close to the monopoly operating profit available on the grid (about 1.32 at the highest grid price, 1.50). The unconstrained logit monopoly price in this model is about 1.58, so the grid's upper bound slightly limits the sole survivor's profit. The non-lethal condition still shows repeated bans and substantial attributed bankruptcy. Its initial reserve is enough to survive one full ban, but the data do not establish the complete causal history of each bankruptcy. It would be incorrect to conclude that framing requires T_ban Φ ≥ K_0.
 
-![Original and new-seed single-learner results](plots/final_report/single_learner.png)
+![Original and new-seed single-learner results](figures/single_learner.png)
 
 *Figure 1. Means for the original 20 seeds and five additional seeds per condition. The new-seed means for attributed bankruptcies are 1.983, 2.000, 1.912, 0.000, and 0.000 in the order shown. The repeated pattern is useful evidence of reproducibility under this configuration, not a guarantee across markets.*
 
@@ -157,15 +157,15 @@ The mean-rule outcomes are consistent with the model's framing mechanism against
 | Cap = 10, effectively inactive for this grid | 0.000 (0.000) | 0.000 (0.000) | 3.000 (0.000) |
 | Cap = 0.60, N_min = 1 | 0.000 (0.000) | 0.000 (0.000) | 3.000 (0.000) |
 
-*Table 2. Means (standard errors) across ten seeds per condition from [cap/no-effective-cap](results/athena/controls/control_cap_noreg.csv) and [N_min = 1](results/athena/controls/control_cap_nmin1.csv) controls. All three sellers learn. These controls were first run with an ad-hoc driver that was not kept. We rewrote it as [run_cap_controls.py](experiments/run_cap_controls.py) and reran all three conditions with the same seeds on a different machine ([cap_controls.csv](results/controls_rerun/cap_controls.csv)); every number matches exactly.*
+*Table 2. Means (standard errors) across ten seeds per condition from [cap/no-effective-cap](../results/athena/controls/control_cap_noreg.csv) and [N_min = 1](../results/athena/controls/control_cap_nmin1.csv) controls. All three sellers learn. These controls were first run with an ad-hoc driver that was not kept. We rewrote it as [run_cap_controls.py](../experiments/run_cap_controls.py) and reran all three conditions with the same seeds on a different machine ([cap_controls.csv](../results/controls_rerun/cap_controls.csv)); every number matches exactly.*
 
-![Survivors in all-learning controls](plots/final_report/controls.png)
+![Survivors in all-learning controls](figures/controls.png)
 
 *Figure 2. Mean survivors in the three saved control conditions.*
 
 Under the cap with N_min = 2, almost two firms per episode go bankrupt without an attributed framing event. Thus market concentration or bankruptcy alone cannot establish watchdog manipulation. In that condition, fresh bans (1.997 per episode) equal bankruptcies (1.997). Under a cap, a seller can be flagged only if its own price exceeds 0.60, so every one of these bans followed a seller's own above-cap price. With K_0 = 0.15, one ban is lethal.
 
-To see the sequence directly, we retrained the same ten control seeds and recorded step-by-step traces of two frozen-policy episodes per seed ([trace_cap_control.py](experiments/trace_cap_control.py); outputs in [results/cap_trace](results/cap_trace/)). In all 20 traced episodes with N_min = 2, the same sequence occurs:
+To see the sequence directly, we retrained the same ten control seeds and recorded step-by-step traces of two frozen-policy episodes per seed ([trace_cap_control.py](../experiments/trace_cap_control.py); outputs in [results/cap_trace](../results/cap_trace/)). In all 20 traced episodes with N_min = 2, the same sequence occurs:
 
 1. While at least two firms are active, two firms set prices above the cap (anywhere from 0.75 to 1.50) during the first few periods.
 2. Each is audited, suspended, and bankrupt by period 16 at the latest.
@@ -179,7 +179,7 @@ In the all-learning robustness study, mean-rule attributed bankruptcies were hig
 
 ### 5.3 Behavioral traits
 
-We varied one trait at a time, giving all three learners the same value, under the mean rule with δ = 0.10. Each configuration was trained for 10M steps ([study_h3.csv](results/Krishs-MacBook-Air/all/study_h3.csv)) and again for 300M steps ([study_h3_300M.csv](results/traits_300M/study_h3_300M.csv)), because Section 5.5 shows 10M steps is not enough for framing levels to settle. The 300M results are the ones to rely on, and they differ from the 10M results in important ways.
+We varied one trait at a time, giving all three learners the same value, under the mean rule with δ = 0.10. Each configuration was trained for 10M steps ([study_h3.csv](../results/Krishs-MacBook-Air/all/study_h3.csv)) and again for 300M steps ([study_h3_300M.csv](../results/traits_300M/study_h3_300M.csv)), because Section 5.5 shows 10M steps is not enough for framing levels to settle. The 300M results are the ones to rely on, and they differ from the 10M results in important ways.
 
 | Trait value | Attributed bankruptcies / episode, 10M | Attributed bankruptcies / episode, 300M | Survivors, 300M |
 | --- | ---: | ---: | ---: |
@@ -201,7 +201,7 @@ We varied one trait at a time, giving all three learners the same value, under t
 
 These are exploratory results from ten seeds per value without a multiplicity correction.
 
-![Trait sweeps at 10M and 300M training steps](paper/figures/traits.png)
+![Trait sweeps at 10M and 300M training steps](../paper/figures/traits.png)
 
 *Figure 3. Attributed bankruptcies per episode as each trait varies, at 10M and 300M training steps. Ten seeds per point; error bars are one standard error. Generated by `scripts/make_paper_figures.py`.*
 
@@ -216,7 +216,7 @@ With N = 3, the market can shrink to two active firms after one exit, and Sectio
 | Mean, δ = 0.10 | 2 | 0.209 (0.034) | 0.922 (0.113) | 2.081 (0.113) | 1.00 (0.00) |
 | Median, δ = 0.10 | 2 | 0.139 (0.016) | 0.478 (0.074) | 2.524 (0.074) | 1.00 (0.00) |
 
-*Table 4. Means (standard errors) across ten seeds per condition from [study_n4long.csv](results/Krishs-MacBook-Air/all/study_n4long.csv).*
+*Table 4. Means (standard errors) across ten seeds per condition from [study_n4long.csv](../results/Krishs-MacBook-Air/all/study_n4long.csv).*
 
 The mean rule again produces more attributed bankruptcies than the median rule: about three times as many with N_min = 3 (0.548 vs 0.183, a gap of about four standard errors) and about twice as many with N_min = 2. The median rule's attributed bankruptcies are lower with N_min = 3, consistent with its protection being stronger when it always compares at least three sellers. They are not zero. In an all-learning market prices are spread across several values rather than two, and a seller close to the median can move it. In every condition, the market still ends with exactly N_min − 1 survivors, the point at which audits stop. Most bankruptcies are not attributed to framing, so the "race to be the unregulated survivor" seen in the cap control (Section 5.2) appears to operate here as well.
 
@@ -224,7 +224,7 @@ The mean rule again produces more attributed bankruptcies than the median rule: 
 
 With N = 3 and 11 prices, each learner's observation space has 11³ × 2³ × 3 = 31,944 states. One might worry that framing is rare in the all-learning experiments only because the learners have not trained long enough to find it. The trainer records the fraction of states each learner visits at least once during training. In the 10M-step all-learning runs this is about 15%. In the single-learner runs it is only 0.1–0.4%, because fixed rivals keep most price combinations unreachable, yet the single learner finds framing within 2M steps.
 
-To test the all-learning case directly, we retrained the δ = 0.10 mean and median conditions from the robustness study with the same ten seeds at 100M, 300M, and 1B training steps ([check_training_length.py](experiments/check_training_length.py); outputs in [results/training_length](results/training_length/)).
+To test the all-learning case directly, we retrained the δ = 0.10 mean and median conditions from the robustness study with the same ten seeds at 100M, 300M, and 1B training steps ([check_training_length.py](../experiments/check_training_length.py); outputs in [results/training_length](../results/training_length/)).
 
 | Training steps | State coverage | Mean rule: W | Mean rule: attributed bankruptcies | Median rule: W | Median rule: attributed bankruptcies | Median rule: survivors |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -241,7 +241,7 @@ This has a direct consequence for the other all-learning results. The robustness
 
 ### 5.6 Defences against learners
 
-We tested two defences, both implemented in the native engine ([run_defences.py](experiments/run_defences.py), [patient_attacker.py](experiments/patient_attacker.py); outputs in [results/defences](results/defences/)):
+We tested two defences, both implemented in the native engine ([run_defences.py](../experiments/run_defences.py), [patient_attacker.py](../experiments/patient_attacker.py); outputs in [results/defences](../results/defences/)):
 
 - **EMA reference.** Prices are judged against r_t = β·r_{t−1} + (1−β)·mean(p_t), so a one-period undercut moves the reference only a fraction 1−β as far.
 - **Escrow.** A flagged, audited seller is not suspended. Its profit above the Nash level for that period is removed instead.
@@ -266,17 +266,17 @@ We tested two defences, both implemented in the native engine ([run_defences.py]
 
 ### 5.7 Addendum: results added after this report
 
-These results are written up in full in [`paper/main.tex`](paper/main.tex); every number comes from the CSVs listed.
+These results are written up in full in [`paper/main.tex`](../paper/main.tex); every number comes from the CSVs listed.
 
-- **Exact best response (H4)** ([best_response.py](src/benchmarks/best_response.py), [exact_grid.csv](results/best_response/exact_grid.csv)). The original DP solver gave impossible negative gains (it hard-coded audits at 3 active firms and rounded capital to multiples of Φ); it was replaced by an exact search over reachable states, tested in [test_best_response.py](tests/test_best_response.py). In the main single-learner market the exact optimum frames both rivals and earns 1.3125 per period (learner: 1.312). Honest pricing is optimal under the median rule and the cap in all 60 grid cells, matching the learner. Under the mean rule framing is optimal in all 17 solvable cells and the learner (2M steps) frames in 15. It misses the two cells where one-period bans require 2 or 3 repeated bans; at 300M steps it reaches 87% and 30% of the optimal profit there ([followups](results/followups/)). **H4 is supported.**
-- **But-for replay attribution** ([replay_attribution.py](src/evaluation/replay_attribution.py), [all_learners.csv](results/replay_attribution/all_learners.csv)). With all sellers learning (300M steps), 1.34 of the 1.79 ban-related bankruptcies per episode under the mean rule would not have happened had the rivals priced honestly; the one-period attribution in Sections 3.2 and 5 undercounts framing by about a third (W 0.60 vs 0.91), and by two thirds under EMA (0.15 vs 0.49).
-- **Phase diagram at 300M steps (H2)** ([study_h2_300M.csv](results/long_300M/study_h2_300M.csv)). Non-lethal cells average 0.63 attributed bankruptcies per episode under the mean rule, as many as lethal cells (0.58); only one-period bans with K0 ≥ 4Φ stop framing. At 10M steps the same grid looked as if H2 held (0.09 vs 0.39). **H2 is rejected.**
-- **Robustness grid at 300M steps** ([study_robust_300M.csv](results/long_300M/study_robust_300M.csv)) and **sensitivity sweep** ([sensitivity/](results/sensitivity/)): the mean rule produces more attributed bankruptcies than the median in all 21 settings (δ, M, B, outside option, σ, N = 3–5, uncapped capital, η, γ), significant after Holm correction in 19 ([key_comparisons.csv](results/stats/key_comparisons.csv)). A single learner with N = 5 bankrupts all four rivals at 50M steps.
-- **Deep Q-network** ([dqn_single.py](src/agents/dqn_single.py), [n3.csv](results/dqn_single/n3.csv)). A DQN seller against Nash rivals (2M steps, 10 seeds) frames both rivals in every seed under the mean rule (1.99 rival bankruptcies per episode, 1.97 caused; profit 1.304 vs exact 1.3125) and prices at Nash under the median rule and the cap, so the single-learner result is not specific to tabular learning.
-- **Deep Q-network at larger N** ([n8.csv](results/dqn_single/n8.csv), [n10.csv](results/dqn_single/n10.csv)). With N = 8 and N = 10 (Φ = 0.02, K0 = 0.06), a single DQN seller bankrupts 6.33 of 7 and 7.79 of 9 rivals per episode under the mean rule in every seed (28× and 32× the Nash profit) and never frames under the median rule.
-- **Two deep learners among Nash sellers** ([dqn_multi.py](src/agents/dqn_multi.py), [results](results/dqn_multi/)). With one, three or six honest sellers (N = 3, 5, 8; 10 seeds each), the two learners jointly bankrupt almost all honest sellers and then frame each other until one monopolist remains (29 of 30 seeds). The median rule protects the honest sellers when the learners are a minority (N = 5, 8: no honest seller is bankrupted); at N = 3 they are a majority and framed in 1 seed of 10.
-- **Price cap enforced by escrow** ([escrow_cap_all.csv](results/defences/escrow_cap_all.csv)). With all sellers learning (300M steps), no sanctions, no bankruptcies, all firms survive and prices sit at the cap (0.59), compared with 0.69 under mean + escrow.
-- **Correction to Section 5.2.** At 300M steps the cap control with N_min = 2 has no bankruptcies and all firms survive ([cap_controls_300M.csv](results/controls_rerun/cap_controls_300M.csv)); the 10M "race to the last seller" is a learning-phase effect, not a stable outcome.
+- **Exact best response (H4)** ([best_response.py](../src/benchmarks/best_response.py), [exact_grid.csv](../results/best_response/exact_grid.csv)). The original DP solver gave impossible negative gains (it hard-coded audits at 3 active firms and rounded capital to multiples of Φ); it was replaced by an exact search over reachable states, tested in [test_best_response.py](../tests/test_best_response.py). In the main single-learner market the exact optimum frames both rivals and earns 1.3125 per period (learner: 1.312). Honest pricing is optimal under the median rule and the cap in all 60 grid cells, matching the learner. Under the mean rule framing is optimal in all 17 solvable cells and the learner (2M steps) frames in 15. It misses the two cells where one-period bans require 2 or 3 repeated bans; at 300M steps it reaches 87% and 30% of the optimal profit there ([followups](../results/followups/)). **H4 is supported.**
+- **But-for replay attribution** ([replay_attribution.py](../src/evaluation/replay_attribution.py), [all_learners.csv](../results/replay_attribution/all_learners.csv)). With all sellers learning (300M steps), 1.34 of the 1.79 ban-related bankruptcies per episode under the mean rule would not have happened had the rivals priced honestly; the one-period attribution in Sections 3.2 and 5 undercounts framing by about a third (W 0.60 vs 0.91), and by two thirds under EMA (0.15 vs 0.49).
+- **Phase diagram at 300M steps (H2)** ([study_h2_300M.csv](../results/long_300M/study_h2_300M.csv)). Non-lethal cells average 0.63 attributed bankruptcies per episode under the mean rule, as many as lethal cells (0.58); only one-period bans with K0 ≥ 4Φ stop framing. At 10M steps the same grid looked as if H2 held (0.09 vs 0.39). **H2 is rejected.**
+- **Robustness grid at 300M steps** ([study_robust_300M.csv](../results/long_300M/study_robust_300M.csv)) and **sensitivity sweep** ([sensitivity/](../results/sensitivity/)): the mean rule produces more attributed bankruptcies than the median in all 21 settings (δ, M, B, outside option, σ, N = 3–5, uncapped capital, η, γ), significant after Holm correction in 19 ([key_comparisons.csv](../results/stats/key_comparisons.csv)). A single learner with N = 5 bankrupts all four rivals at 50M steps.
+- **Deep Q-network** ([dqn_single.py](../src/agents/dqn_single.py), [n3.csv](../results/dqn_single/n3.csv)). A DQN seller against Nash rivals (2M steps, 10 seeds) frames both rivals in every seed under the mean rule (1.99 rival bankruptcies per episode, 1.97 caused; profit 1.304 vs exact 1.3125) and prices at Nash under the median rule and the cap, so the single-learner result is not specific to tabular learning.
+- **Deep Q-network at larger N** ([n8.csv](../results/dqn_single/n8.csv), [n10.csv](../results/dqn_single/n10.csv)). With N = 8 and N = 10 (Φ = 0.02, K0 = 0.06), a single DQN seller bankrupts 6.33 of 7 and 7.79 of 9 rivals per episode under the mean rule in every seed (28× and 32× the Nash profit) and never frames under the median rule.
+- **Two deep learners among Nash sellers** ([dqn_multi.py](../src/agents/dqn_multi.py), [results](../results/dqn_multi/)). With one, three or six honest sellers (N = 3, 5, 8; 10 seeds each), the two learners jointly bankrupt almost all honest sellers and then frame each other until one monopolist remains (29 of 30 seeds). The median rule protects the honest sellers when the learners are a minority (N = 5, 8: no honest seller is bankrupted); at N = 3 they are a majority and framed in 1 seed of 10.
+- **Price cap enforced by escrow** ([escrow_cap_all.csv](../results/defences/escrow_cap_all.csv)). With all sellers learning (300M steps), no sanctions, no bankruptcies, all firms survive and prices sit at the cap (0.59), compared with 0.69 under mean + escrow.
+- **Correction to Section 5.2.** At 300M steps the cap control with N_min = 2 has no bankruptcies and all firms survive ([cap_controls_300M.csv](../results/controls_rerun/cap_controls_300M.csv)); the 10M "race to the last seller" is a learning-phase effect, not a stable outcome.
 
 ## 6. Discussion and limitations
 
@@ -288,7 +288,7 @@ The main limitations are:
 2. **Partial observation and learning dynamics.** Independent Q-learners see compressed observations and face changing opponents. A frozen greedy policy after a fixed training budget is not proof of equilibrium or optimality. Section 5.5 shows that framing levels in the all-learning market are still changing at 10M steps and settle only after a few hundred million steps. The robustness and control results were measured at 10M steps.
 3. **Attribution.** Nash-price flag counterfactuals are useful diagnostics, but the bankruptcy proxy does not replay the market without the intervention. Joint attribution to one seller is a bookkeeping convention, and W is undefined if no bans occur.
 4. **Comparability.** The single-learner comparison uses fixed Nash-price rivals, whereas the controls and trait study have all sellers learning. Results from these settings should not be treated as estimates of the same causal effect.
-5. **Statistical and provenance limits.** The study includes multiple exploratory sweeps. Figures from before the learning-dynamics fix (extensions, DQN, old phase diagrams) are kept in `plots/legacy/` and are not used as evidence. Tables report standard errors across seeds, but with 5–20 seeds per condition and no multiplicity correction, small differences should not be over-read. A small five-seed replication does not replace a preregistered study or broader sensitivity analysis.
+5. **Statistical and provenance limits.** The study includes multiple exploratory sweeps. Figures from before the learning-dynamics fix (extensions, DQN, old phase diagrams) are not used as evidence; they remain only in the git history. Tables report standard errors across seeds, but with 5–20 seeds per condition and no multiplicity correction, small differences should not be over-read. A small five-seed replication does not replace a preregistered study or broader sensitivity analysis.
 
 Useful next steps are combining escrow with a price cap or a stronger fine (so the rule resists framing and still disciplines high prices), attributing harm over multi-period windows, rerunning the robustness grid and controls at 300M+ training steps, matched trajectory-level counterfactual replays, robustness to uncapped capital and alternative horizons, and a prospective experiment plan specifying primary outcomes, seed counts, and comparisons. A matched exact-DP versus learning study would help distinguish feasibility from learnability. The existing EMA, escrow, demand-shock, and DQN extensions are possible follow-on work; their historical figures are not used as evidence in this report.
 
@@ -322,7 +322,7 @@ python experiments/run_defences.py single
 python experiments/run_defences.py single --steps 300000000
 python experiments/run_defences.py all
 python experiments/patient_attacker.py
-python -m pytest -q --ignore=tests/test_dqn_agent.py
+python -m pytest -q
 ```
 
-The audit prints summaries of the saved original and control CSVs; the plot script reads those CSVs and the separately saved new-seed run. The replication script reruns 25 native-engine jobs and overwrites only `results/report_replication/single_learner.csv`; preserve that file first if comparing runs. Native binaries, toolchains, platforms, and random-number implementations may affect exact reproduction. The full test suite additionally requires PyTorch, which was not installed in the replication environment. On that machine (Windows x86-64; see the replication metadata), the other 95 tests passed, and a single historical seed reproduced its recorded outcome. That is not a verification of every historical run. The original 20-seed study ran on an Apple M5 machine (macOS arm64, Python 3.11.15) at commit 2457a32, and the controls ran on a Windows x86-64 machine at commit 908e83b, as recorded in each results folder's `machine.txt`. The five-seed replication matches the original study closely across these platforms (Figure 1). Replication environment details are recorded in [replication metadata](results/report_replication/metadata.txt).
+The audit prints summaries of the saved original and control CSVs; the plot script reads those CSVs and the separately saved new-seed run. The replication script reruns 25 native-engine jobs and overwrites only `results/report_replication/single_learner.csv`; preserve that file first if comparing runs. Native binaries, toolchains, platforms, and random-number implementations may affect exact reproduction. The full test suite additionally requires PyTorch, which was not installed in the replication environment. On that machine (Windows x86-64; see the replication metadata), the other 95 tests passed, and a single historical seed reproduced its recorded outcome. That is not a verification of every historical run. The original 20-seed study ran on an Apple M5 machine (macOS arm64, Python 3.11.15) at commit 2457a32, and the controls ran on a Windows x86-64 machine at commit 908e83b, as recorded in each results folder's `machine.txt`. The five-seed replication matches the original study closely across these platforms (Figure 1). Replication environment details are recorded in [replication metadata](../results/report_replication/metadata.txt).

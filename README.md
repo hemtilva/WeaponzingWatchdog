@@ -13,7 +13,7 @@ Automated regulatory mechanisms ("watchdogs") are commonly deployed in online pl
 
 This project investigates under what market conditions, regulatory architectures, and agent traits this predatory framing behavior emerges, using decentralized tabular Q-learning.
 
-**Paper:** [`paper/main.tex`](paper/main.tex) (arXiv template). **Detailed write-up:** [`FINAL_REPORT.md`](FINAL_REPORT.md).
+**Paper:** [`paper/main.tex`](paper/main.tex) (arXiv template). **Detailed write-up:** [`docs/extended_report.md`](docs/extended_report.md). **Proposal:** [`docs/proposal.pdf`](docs/proposal.pdf).
 
 ---
 
@@ -200,7 +200,7 @@ where $\mathbf{p}_t^{(i \to N)} = (p_{1,t}, \dots, p_{i-1,t}, p_i^N, p_{i+1,t}, 
 | Phase diagram over K0/Φ × T_ban (`run_study.py h2`) | Done at 300M steps (`results/long_300M/`). |
 | EMA and escrow defences | Done against learners (`experiments/run_defences.py`, `experiments/run_escrow_cap.py`). |
 | Deep RL | Single DQN seller (N = 3, 8, 10) and two DQN sellers (N = 3, 5, 8) done. Markets where every seller is a deep learner need the vectorised GPU code on branch `gpu-vectorized` (see `GPU_SETUP.md` there). |
-| Extension A (learning regulator), Extension B (demand shock), DQN, tournament | Implemented, but last run before the fix to the learning dynamics. Their figures are in `plots/legacy/` and are **not** current results. |
+| Extension A (learning regulator), Extension B (demand shock), DQN ablation, tournament | Implemented early, but only run before the fix to the learning dynamics, so **not** current results. Removed from the tree; they remain in the git history. |
 
 ---
 
@@ -221,51 +221,28 @@ The computational pipeline uses a dual-backend architecture designed for maximum
 
 ```text
 WeaponzingWatchdog/
-├── Proposal_Report.pdf              # Academic proposal and technical specification
-├── README.md                        # Technical documentation and mathematical model
-├── pyproject.toml
+├── README.md                  # Overview, results, reproduction table
+├── pyproject.toml             # Package metadata (pip install -e .)
+├── requirements.txt
+├── paper/                     # Submitted report (main.tex), extended version, bibliography, figures/
+├── docs/
+│   ├── proposal.pdf           # Project idea review proposal
+│   ├── extended_report.md     # Detailed record of every study, with corrections
+│   └── figures/               # Figures embedded in the extended report
 ├── src/
-│   ├── csrc/
-│   │   └── engine.cpp               # C++ / OpenMP kernel (Bellman updates & market clearing)
-│   ├── engine/
-│   │   ├── market.py                # Logit demand system, choice probabilities, surplus
-│   │   ├── capital.py               # Capital dynamics, fixed costs, bankruptcy handling
-│   │   └── rules.py                 # Watchdog implementations (Mean, Median, Cap, Z-score)
-│   ├── benchmarks/
-│   │   ├── nash.py                  # Pure-strategy Bertrand-Nash stage solver
-│   │   ├── monopoly.py              # Joint monopoly profit maximizer
-│   │   ├── exact_dp.py              # Full-information Value Iteration solver
-│   │   └── diagnostics.py           # Pre-flight checks (viable / lethal / framing feasible) + framing_market preset
-│   ├── agents/
-│   │   ├── q_learning.py            # Independent tabular Q-learning implementation
-│   │   ├── traits.py                # CRRA utility, altruism, ethics reward scaling
-│   │   └── trainer.py               # Simulation loop, per-firm policies, metrics (harm attribution lives in engine/rules.py)
-│   ├── evaluation/
-│   │   ├── metrics.py               # Computation of W, Exploitability, Delta, SWL
-│   │   └── stats.py                 # Confidence intervals, bootstrapping, tests
-│   └── extensions/
-│       ├── learning_regulator.py    # Extension A: Bi-level adaptive regulator & attacker
-│       └── demand_shock.py          # Extension B: Non-stationary demand shocks & cohorts
-├── scripts/
-│   ├── build_engine.py              # Cross-platform compiler detector & build script
-│   ├── generate_phase_diagrams.py   # Multi-rule phase diagram generator (Figure 1)
-│   ├── generate_trace_plot.py       # Step-by-step price and ban timeline trace visualizer
-│   └── run_all_tests.py             # Master test suite runner
-├── dashboard/                       # Interactive local web dashboard
-│   ├── server.py                    # Lightweight HTTP simulation server
-│   └── index.html                   # Interactive simulation UI
-├── experiments/
-│   ├── run_exact_boundary.py        # DP exploit frontier mapping
-│   ├── run_q_sweeps.py              # Multi-seed tabular Q-learning experiments
-│   ├── run_trait_ablations.py       # Parametric trait sweeps over (λ, μ, α)
-│   ├── run_extension_a.py           # Extension A: Adaptive regulator & cyclic dynamics
-│   ├── run_extension_b.py           # Extension B: Demand shock cohort sweeps
-│   ├── run_framing_discovery.py     # Single learner vs honest rivals: is framing learned? (H1/H2)
-│   └── run_full_production_suite.py # Master runner (--smoke-test vs --production)
-└── tests/                           # Unit tests: Proposition 1, harm, framing mechanics, extensions
-    ├── test_scripted_attacker.py    # Ground truth harm measure W verification
-    └── ...
+│   ├── csrc/                  # C++ engine: market kernels (engine.cpp) and full training loop (sim.cpp)
+│   ├── engine/                # Logit market, capital, rules, native bindings (Python reference loop)
+│   ├── agents/                # Tabular Q-learning, traits/reward, trainer; DQN sellers (dqn_single, dqn_multi)
+│   ├── benchmarks/            # Nash, monopoly, exact best response, market diagnostics
+│   └── evaluation/            # Metrics, statistics, but-for replay attribution
+├── experiments/               # One script per study in the paper (see the reproduction table)
+├── scripts/                   # Build the engine, make figures, statistics, run_study.sh for other machines
+├── results/                   # Every CSV and run log behind the paper's tables and figures
+└── tests/                     # Unit and regression tests (incl. C++ vs Python equivalence)
 ```
+
+Superseded proposal-era code (Extensions A/B, the DQN ablation, the tournament, the dashboard,
+early sweep scripts and plots) was removed from the tree; it is available in the git history.
 
 ---
 
