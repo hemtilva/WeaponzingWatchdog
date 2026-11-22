@@ -18,6 +18,7 @@
 \usepackage{enumitem}
 \usepackage{tabularx}
 \setlist{nosep,leftmargin=*}
+\raggedbottom
 
 \newtheorem{proposition}{Proposition}
 \newcommand{\Nact}{N_{\mathrm{act},t}}
@@ -151,7 +152,7 @@ An \emph{attributed bankruptcy} is a bankruptcy that occurs while serving a ban 
 \label{sec:method}
 
 \subsection{Simulator}
-Each period: (1) active sellers choose prices; (2) the logit market clears; (3) profits, fixed costs, and capital update; (4) if $\Nact\ge\Nmin$, $B$ active sellers are audited and flagged ones suspended; (5) sellers with $K=0$ exit. Episodes last 500 periods and reset all capital and bans; an episode ends early only if no seller is solvent, so a sole survivor keeps earning monopoly profits. The loop exists twice: a Python reference implementation and a C++ implementation called through \texttt{ctypes}, which is about $900\times$ faster (17{,}000 vs.\ 15.8 million training steps per second on an Apple M5 laptop, measured by \texttt{scripts/benchmark\_backends.py}). A test suite checks that both produce identical trajectories \emph{and identical Q-tables} for learners, scripted attackers, $N=4$, and every $\Nmin$; all 95 tests pass. Training for $10^9$ steps takes 1.5--3.5 minutes per seed on a laptop.
+Each period: (1) active sellers choose prices; (2) the logit market clears; (3) profits, fixed costs, and capital update; (4) if $\Nact\ge\Nmin$, $B$ active sellers are audited and flagged ones suspended; (5) sellers with $K=0$ exit. Episodes last 500 periods and reset all capital and bans; an episode ends early only if no seller is solvent, so a sole survivor keeps earning monopoly profits. The loop exists twice: a Python reference implementation and a C++ implementation called through \texttt{ctypes}, which is about $900\times$ faster (17{,}000 vs.\ 15.8 million training steps per second on an Apple M5 laptop, measured by \texttt{scripts/benchmark\_backends.py}). A test suite checks that both produce identical trajectories \emph{and identical Q-tables} for learners, scripted attackers, $N=4$, and every $\Nmin$; all 120 tests pass. Training for $10^9$ steps takes 1.5--3.5 minutes per seed on a laptop.
 
 \subsection{Learning algorithm}
 Each seller runs independent tabular Q-learning \citep{watkins1992} on its own observation, treating rivals as part of the environment \citep{tan1993}. Because a suspended seller cannot act, a transition opened at the last action stays open while the seller is banned and accumulates discounted reward; it is closed with a multi-step (semi-Markov) target when the seller acts again, or without bootstrapping if it goes bankrupt (Algorithm~\ref{alg:q}). Without this, the cost of a ban would never be attributed to the price that caused it.
@@ -220,7 +221,7 @@ Before using $W$ and attributed bankruptcies on learners, we tested them on a \e
 \begin{itemize}
 \item $\Nmin=3\to2$. With $N=3$ and $\Nmin=3$, the first exit switches the watchdog off, so at most one rival can ever be framed. Following reviewer feedback, $\Nmin=2$ is our default and $N=4$ with $\Nmin=3$ is reported as a separate setting.
 \item The proposal's exact dynamic-programming baseline returned impossible negative gains; we replaced it with a new exact best-response solver (Section~\ref{sec:exact}), which answers H4 for one learner against fixed rivals.
-\item Extensions A (learning regulator) and B (demand shock), plus a DQN ablation and an evolutionary tournament, are implemented in the repository but were run before a fix to the learning dynamics and have not been rerun; we do not report them as evidence. The EMA and escrow defences were rerun against learners (Section~\ref{sec:defences}).
+\item Extensions A (learning regulator) and B (demand shock), plus a DQN ablation and an evolutionary tournament, were implemented early in the project (kept in the repository's \texttt{archive/} folder) but were run before a fix to the learning dynamics and have not been rerun; we do not report them as evidence. The EMA and escrow defences were rerun against learners (Section~\ref{sec:defences}).
 \end{itemize}
 
 %% ===================================================================
@@ -484,9 +485,9 @@ A relative-price watchdog can be turned against the sellers it is meant to disci
 \toprule
 Member & Assigned in proposal & Delivered & Fulfilled? \\
 \midrule
-Satvik Sharma & Market engine, exact best-response baseline, Extension B & \textit{[to be completed]} & \textit{[yes/partly/no]} \\
-Krish Goradia & Q-learning agents with traits, harm attribution and metrics, DQN ablation & \textit{[to be completed]} & \textit{[yes/partly/no]} \\
-Hem Tilva & Sweep orchestration, analysis and plots, Extension A & \textit{[to be completed]} & \textit{[yes/partly/no]} \\
+Hem Tilva & Sweep orchestration, analysis and plots, Extension A & C++ engine, benchmarks and trainer; learning fixes (reward anchor, inactive-rival observation, suspension-aware updates); native C++ training loop; all-learner studies and coalition attribution; experiment drivers & Yes \\
+Krish Goradia & Q-learning agents with traits, harm attribution and metrics, DQN ablation & Metrics and tests; exact best response; but-for replay; long-run studies, sensitivity and statistics; defences; DQN sellers and GPU simulator; figures and paper & Yes \\
+Satvik Sharma & Market engine, exact best-response baseline, Extension B & Interactive web simulator of the market (GitHub Pages) & Yes \\
 \bottomrule
 \end{tabularx}
 \end{table}

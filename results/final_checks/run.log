@@ -1,0 +1,32 @@
+Running 50 jobs on 10 workers...
+  2/50 jobs  elapsed   1.6 min  ETA  38.8 min
+  4/50 jobs  elapsed   1.6 min  ETA  18.7 min
+  6/50 jobs  elapsed   1.6 min  ETA  12.0 min
+  8/50 jobs  elapsed   1.6 min  ETA   8.6 min
+  10/50 jobs  elapsed   1.7 min  ETA   6.6 min
+  12/50 jobs  elapsed   3.3 min  ETA  10.3 min
+  14/50 jobs  elapsed   3.3 min  ETA   8.5 min
+  16/50 jobs  elapsed   3.3 min  ETA   7.0 min
+  18/50 jobs  elapsed   3.3 min  ETA   5.9 min
+  20/50 jobs  elapsed   3.3 min  ETA   5.0 min
+  22/50 jobs  elapsed   5.1 min  ETA   6.5 min
+  24/50 jobs  elapsed   5.1 min  ETA   5.6 min
+  26/50 jobs  elapsed   5.1 min  ETA   4.7 min
+  28/50 jobs  elapsed   5.1 min  ETA   4.0 min
+  30/50 jobs  elapsed   5.1 min  ETA   3.4 min
+  32/50 jobs  elapsed   5.2 min  ETA   2.9 min
+  34/50 jobs  elapsed   5.2 min  ETA   2.4 min
+  36/50 jobs  elapsed   5.2 min  ETA   2.0 min
+  38/50 jobs  elapsed   5.2 min  ETA   1.6 min
+  40/50 jobs  elapsed   5.2 min  ETA   1.3 min
+  42/50 jobs  elapsed   5.2 min  ETA   1.0 min
+  44/50 jobs  elapsed   5.2 min  ETA   0.7 min
+  46/50 jobs  elapsed   5.2 min  ETA   0.5 min
+  48/50 jobs  elapsed   5.2 min  ETA   0.2 min
+  50/50 jobs  elapsed   5.2 min  ETA   0.0 min
+done in 312s
+mu_ethics=3.0            n=10 kills/ep 1.250 (se 0.090)  survivors 1.018 (se 0.068)  price 1.318 (se 0.083)  swl 0.175 (se 0.006)  firm0 profit 0.412 (se 0.065)
+mu_ethics=10.0           n=10 kills/ep 0.136 (se 0.074)  survivors 2.197 (se 0.328)  price 0.703 (se 0.173)  swl 0.073 (se 0.030)  firm0 profit 0.184 (se 0.055)
+planner all-learners     n=10 kills/ep 0.000 (se 0.000)  survivors 3.000 (se 0.000)  price 0.297 (se 0.002)  swl 0.000 (se 0.000)  firm0 profit 0.099 (se 0.001)
+planner single           n=20 kills/ep 0.000 (se 0.000)  survivors 3.000 (se 0.000)  price 0.300 (se 0.000)  swl 0.000 (se 0.000)  firm0 profit 0.100 (se 0.000)
+[SAVED] D:\IIT\SEM-V\FAMAS\WeaponzingWatchdog\results\final_checks

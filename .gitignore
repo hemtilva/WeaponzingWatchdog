@@ -18,6 +18,7 @@ venv/
 env/
 .env/
 .venv/
+.venv-gpu/
 
 # IDE and editors
 .vscode/
@@ -36,6 +37,28 @@ output/
 data/
 
 
-# Smoke-test outputs
-plots/*_quick.png
-plots/*_legacyreset.png
+
+# AI coding-assistant files (not part of the project)
+.agents/
+.codex/
+.codex-attachments/
+agent_guidelines/
+.claude/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+.cursor/
+.cursorrules
+.windsurf/
+.windsurfrules
+.aider*
+.github/copilot-instructions.md
+
+# Overleaf upload bundle (built locally)
+*_overleaf.zip
+
+# Run logs under results/ document how each result was produced: keep them
+!results/**/*.log
+
+# Local plot output of experiments/run_study.py (root only; archive/plots/ is tracked)
+/plots/

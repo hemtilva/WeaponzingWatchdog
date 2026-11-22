@@ -15,7 +15,7 @@
 #   6. copies CSVs, plots, the log and machine info to results/<machine>/<study>/
 #   7. commits those files and pushes them to the branch
 #
-# It never changes source code and never pushes anything except results/ and plots/.
+# It never changes source code and never pushes anything except results/.
 
 set -euo pipefail
 
@@ -69,7 +69,7 @@ PY
 
 # ---------------------------------------------------------------- 4. tests
 say "Running tests"
-python -m pytest tests -q --ignore=tests/test_dqn_agent.py -p no:cacheprovider || die "tests failed; not running studies"
+python -m pytest tests -q -p no:cacheprovider || die "tests failed; not running studies"
 
 # ---------------------------------------------------------------- 5. study
 say "Running study: $STUDY"

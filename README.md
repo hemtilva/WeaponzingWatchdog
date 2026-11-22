@@ -13,7 +13,7 @@ Automated regulatory mechanisms ("watchdogs") are commonly deployed in online pl
 
 This project investigates under what market conditions, regulatory architectures, and agent traits this predatory framing behavior emerges, using decentralized tabular Q-learning.
 
-**Paper:** [`paper/main.tex`](paper/main.tex) (arXiv template). **Detailed write-up:** [`FINAL_REPORT.md`](FINAL_REPORT.md).
+**Paper:** [`paper/main.tex`](paper/main.tex) (arXiv template). **Detailed write-up:** [`report/extended_report.md`](report/extended_report.md). **Proposal:** [`report/proposal.pdf`](report/proposal.pdf).
 
 ---
 
@@ -206,7 +206,7 @@ where $\mathbf{p}_t^{(i \to N)} = (p_{1,t}, \dots, p_{i-1,t}, p_i^N, p_{i+1,t}, 
 | --- | --- | --- |
 | **H1** Mean rule exploitable by one undercutter; median and cap not | **Supported, with a caveat.** A single learner frames rivals under the mean rule in all 20 seeds and never under median or cap. With all sellers learning, the mean rule is consistently more exploitable, but the median is not immune once two firms remain. | `results/Krishs-MacBook-Air/all/study_single.csv`, `results/training_length/`, `results/sensitivity/` |
 | **H2** Framing pays only when one ban is lethal | **Rejected.** At 300M steps framing is as frequent where a banned rival survives (0.63/episode) as where one ban kills (0.58); the exact solver finds framing optimal in two non-lethal cells too. | Phase diagram, `results/long_300M/`, `results/best_response/` |
-| **H3** Framing falls with ethics, altruism, risk aversion | **Partly supported.** At 300M steps risk aversion (zero framing at α ≥ 1.5) and altruism (1.10 → 0.09) reduce framing; an ethics penalty up to μ = 1 has no effect. In mixed populations one risk-neutral or selfish seller restores framing. | Traits figure, `results/traits_300M/`, `results/promises/mixtures.csv` |
+| **H3** Framing falls with ethics, altruism, risk aversion | **Partly supported.** At 300M steps risk aversion (zero framing at α ≥ 1.5) and altruism (1.10 → 0.09) reduce framing; an ethics penalty has no effect up to μ = 3 and reduces framing only at μ = 10 (0.14). In mixed populations one risk-neutral or selfish seller restores framing. | Traits figure, `results/traits_300M/`, `results/final_checks/ethics.csv`, `results/promises/mixtures.csv` |
 | **New** Two learners | **Cooperate, then fight.** Two DQN learners jointly frame the honest sellers, then each other (29/30 seeds); the median rule protects while they are a minority. | `results/dqn_multi/` |
 | **New** Defences | **EMA delays; escrow removes; cap + escrow removes and holds prices down.** EMA: learners find a 4-period attack at β = 0.80; mean + escrow: no framing but prices ≈ 0.69; cap + escrow: no framing, prices at the cap (0.59). | `results/defences/` |
 | **H4** Learners find framing only where exact analysis says it is optimal | **Supported.** Learners reach the exact optimum when one ban suffices (15 of 17 solvable cells) and fall short as attacks need more repeated bans (87% and 30% of optimal profit with 2 and 3 bans, at 300M steps). | `results/best_response/`, `results/followups/` |
@@ -223,7 +223,7 @@ where $\mathbf{p}_t^{(i \to N)} = (p_{1,t}, \dots, p_{i-1,t}, p_i^N, p_{i+1,t}, 
 | EMA and escrow defences | Done against learners (`experiments/run_defences.py`, `experiments/run_escrow_cap.py`). |
 | z-score rule, omniscient planner, top-score-first audits, T_ban ∈ {1, 3, 5, 10}, ban-timer observation ablation, trait mixtures | Done (`experiments/run_promises.py`, `results/promises/`). |
 | Deep RL | Single DQN seller (N = 3, 8, 10) and two DQN sellers (N = 3, 5, 8) done. Markets where every seller is a deep learner need the vectorised GPU code on branch `gpu-vectorized` (see `GPU_SETUP.md` there). |
-| Extension A (learning regulator), Extension B (demand shock), DQN, tournament | Implemented, but last run before the fix to the learning dynamics. Their figures are in `plots/legacy/` and are **not** current results. |
+| Extension A (learning regulator), Extension B (demand shock), DQN ablation, tournament | Implemented early, but only run before the fix to the learning dynamics, so **not** current results. Kept in [`archive/`](archive/README.md). |
 
 ---
 
@@ -244,55 +244,31 @@ The computational pipeline uses a dual-backend architecture designed for maximum
 
 ```text
 WeaponzingWatchdog/
-├── Proposal_Report.pdf              # Academic proposal and technical specification
-├── README.md                        # Technical documentation and mathematical model
-├── agent_guidelines/                # Developer and agent implementation specifications
-│   ├── README.md                    # Guideline index and protocol
-│   ├── 01_theory_and_formulation.md # Game dynamics, Proposition 1, traits, metrics
-│   └── 02_architecture_and_implementation.md # Dual-backend, DP, Q-learning, sweeps
-├── pyproject.toml
+├── README.md                  # Overview, results, reproduction table
+├── pyproject.toml             # Package metadata (pip install -e .)
+├── requirements.txt
+├── paper/                     # Submitted report (main.tex), extended version, bibliography, figures/
+├── report/
+│   ├── proposal.pdf           # Project idea review (ideation) proposal
+│   ├── final_report.pdf       # Final report, compiled from paper/main.tex
+│   ├── extended_report.md     # Detailed record of every study, with corrections
+│   └── figures/               # Figures embedded in the extended report
 ├── src/
-│   ├── csrc/
-│   │   └── engine.cpp               # C++ / OpenMP kernel (Bellman updates & market clearing)
-│   ├── engine/
-│   │   ├── market.py                # Logit demand system, choice probabilities, surplus
-│   │   ├── capital.py               # Capital dynamics, fixed costs, bankruptcy handling
-│   │   └── rules.py                 # Watchdog implementations (Mean, Median, Cap, Z-score)
-│   ├── benchmarks/
-│   │   ├── nash.py                  # Pure-strategy Bertrand-Nash stage solver
-│   │   ├── monopoly.py              # Joint monopoly profit maximizer
-│   │   ├── exact_dp.py              # Full-information Value Iteration solver
-│   │   └── diagnostics.py           # Pre-flight checks (viable / lethal / framing feasible) + framing_market preset
-│   ├── agents/
-│   │   ├── q_learning.py            # Independent tabular Q-learning implementation
-│   │   ├── traits.py                # CRRA utility, altruism, ethics reward scaling
-│   │   └── trainer.py               # Simulation loop, per-firm policies, metrics (harm attribution lives in engine/rules.py)
-│   ├── evaluation/
-│   │   ├── metrics.py               # Computation of W, Exploitability, Delta, SWL
-│   │   └── stats.py                 # Confidence intervals, bootstrapping, tests
-│   └── extensions/
-│       ├── learning_regulator.py    # Extension A: Bi-level adaptive regulator & attacker
-│       └── demand_shock.py          # Extension B: Non-stationary demand shocks & cohorts
-├── scripts/
-│   ├── build_engine.py              # Cross-platform compiler detector & build script
-│   ├── generate_phase_diagrams.py   # Multi-rule phase diagram generator (Figure 1)
-│   ├── generate_trace_plot.py       # Step-by-step price and ban timeline trace visualizer
-│   └── run_all_tests.py             # Master test suite runner
-├── dashboard/                       # Interactive local web dashboard
-│   ├── server.py                    # Lightweight HTTP simulation server
-│   └── index.html                   # Interactive simulation UI
-├── experiments/
-│   ├── run_exact_boundary.py        # DP exploit frontier mapping
-│   ├── run_q_sweeps.py              # Multi-seed tabular Q-learning experiments
-│   ├── run_trait_ablations.py       # Parametric trait sweeps over (λ, μ, α)
-│   ├── run_extension_a.py           # Extension A: Adaptive regulator & cyclic dynamics
-│   ├── run_extension_b.py           # Extension B: Demand shock cohort sweeps
-│   ├── run_framing_discovery.py     # Single learner vs honest rivals: is framing learned? (H1/H2)
-│   └── run_full_production_suite.py # Master runner (--smoke-test vs --production)
-└── tests/                           # Unit tests: Proposition 1, harm, framing mechanics, extensions
-    ├── test_scripted_attacker.py    # Ground truth harm measure W verification
-    └── ...
+│   ├── csrc/                  # C++ engine: market kernels (engine.cpp) and full training loop (sim.cpp)
+│   ├── engine/                # Logit market, capital, rules, native bindings (Python reference loop)
+│   ├── agents/                # Tabular Q-learning, traits/reward, trainer; DQN sellers (dqn_single, dqn_multi)
+│   ├── benchmarks/            # Nash, monopoly, exact best response, market diagnostics
+│   └── evaluation/            # Metrics, statistics, but-for replay attribution
+├── experiments/               # One script per study in the paper (see the reproduction table)
+├── scripts/                   # Build the engine, make figures, statistics, run_study.sh for other machines
+├── results/                   # Every CSV and run log behind the paper's tables and figures
+├── tests/                     # Unit and regression tests (incl. C++ vs Python equivalence)
+└── archive/                   # Superseded early code and plots; not maintained, not used as evidence
 ```
+
+Superseded proposal-era code (Extensions A/B, the DQN ablation, the tournament, the dashboard,
+early sweep scripts and plots) is kept in `archive/` for the record; see `archive/README.md`.
+Nothing there produces a result in the report.
 
 ---
 
@@ -377,6 +353,8 @@ Every experiment should start from a market where weaponization is possible at a
 | Price cap with escrow | `python experiments/run_escrow_cap.py all` and `single` | `results/defences/escrow_cap_*.csv` |
 | Attack trace (paper Figure 1a) | `python experiments/trace_single_learner.py` | `results/single_trace/trace.csv` |
 | z-score, planner, top-score audits, T_ban, timer observation, trait mixtures | `python experiments/run_promises.py all`, then `timerlen` | `results/promises/` |
+| Two learners cooperate, then fight (paper Figure 2a) | `python experiments/trace_two_learners.py` | `results/two_trace/trace.csv`, `results/two_trace/probe.csv` |
+| Ethics at μ = 3, 10; price cap at 1.1 × Nash | `python experiments/run_final_checks.py` | `results/final_checks/` |
 | Confidence intervals and tests | `python scripts/stats_report.py`; `python scripts/promises_report.py` | `results/stats/key_comparisons.csv`, `results/stats/promises_comparisons.csv` |
 | All figures | `python scripts/make_paper_figures.py` | `paper/figures/` |
 | C++ vs Python speed-up (~930×) | `python scripts/benchmark_backends.py` | printed |

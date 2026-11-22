@@ -295,7 +295,63 @@ def fig_attack_training():
     plt.close(fig)
 
 
+def fig_two_attack():
+    """(a) One frozen episode: two tabular learners + two Nash sellers (N = 4, mean rule).
+    (b) Survivors per episode with two DQN learners among N - 2 Nash sellers."""
+    PURPLE = "#7b4fd6"
+    t = pd.read_csv(RES / "two_trace/trace.csv")
+    t = t[t.t <= 15]
+    fig, axes = plt.subplots(1, 2, figsize=(6.4, 2.05), gridspec_kw={"width_ratios": [1.35, 1]})
+    ax = axes[0]
+    ax.axvspan(-0.5, 5.5, color=GRID, alpha=0.55, lw=0)
+    ax.axvspan(5.5, 10.5, color=GRID, alpha=0.25, lw=0)
+    ax.text(2.5, 1.0, "together: frame\nthe honest sellers", ha="center", va="center", fontsize=6.5, color=INK2)
+    ax.text(8.0, 1.0, "turn on\neach other", ha="center", va="center", fontsize=6.5, color=INK2)
+    series = [(0, BLUE, "o", "Learner A"), (1, PURPLE, "D", "Learner B"),
+              (2, ORANGE, "s", "Honest 1 (Nash)"), (3, AQUA, "^", "Honest 2 (Nash)")]
+    for i, c, mk, lab in series:
+        alive = t[f"K{i}"] > 0
+        ax.plot(t.t[alive], t[f"p{i}"][alive], color=c, marker=mk, ms=3.2, lw=1.3, label=lab,
+                markeredgecolor="white", markeredgewidth=0.5)
+        banned = t[(t[f"ban{i}"] > 0) & alive]
+        if len(banned):
+            ax.scatter(banned.t, banned[f"p{i}"], s=50, facecolors="none", edgecolors=c, linewidths=1.0, zorder=4)
+        dead = t[~alive]
+        if len(dead):
+            ax.scatter(dead.t.iloc[:1], dead[f"p{i}"].iloc[:1], marker="x", s=42, color=c, linewidths=1.7, zorder=5)
+    ax.axhline(0.30, color=INK2, ls=":", lw=1)
+    ax.set_xlabel("Period within episode")
+    ax.set_ylabel("Price")
+    ax.set_ylim(-0.08, 1.65)
+    ax.set_xlim(-0.5, 15.5)
+    ax.set_title("(a) Two learners + two honest sellers, mean rule")
+    ax.legend(loc="center left", bbox_to_anchor=(0.68, 0.62), fontsize=6.5, handlelength=1.6)
+
+    ax = axes[1]
+    ns = [3, 5, 8]
+    x = np.arange(len(ns))
+    for off, rule, c, lab in [(-0.19, "mean", BLUE, "Mean rule"), (0.19, "median", ORANGE, "Median rule")]:
+        surv = []
+        for n in ns:
+            g = pd.read_csv(RES / f"dqn_multi/n{n}_full.csv")
+            g = g[g.rule == rule]
+            surv.append((g.survivors_per_ep.mean(), se(g.survivors_per_ep)))
+        bar(ax, x + off, [m for m, _ in surv], [e for _, e in surv], c, lab)
+    for i, n in enumerate(ns):
+        ax.hlines(n, i - 0.4, i + 0.4, colors=INK2, linestyles=":", lw=1)
+    ax.set_xticks(x, [f"$N={n}$" for n in ns])
+    ax.set_ylabel("Survivors per episode")
+    ax.set_ylim(0, 8.8)
+    ax.set_title("(b) Two DQN learners, $N-2$ honest")
+    ax.legend(loc="upper left", fontsize=7)
+    fig.tight_layout()
+    fig.savefig(OUT / "two_attack.pdf")
+    fig.savefig(OUT / "two_attack.png", dpi=200)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
+    fig_two_attack()
     fig_single()
     fig_training()
     fig_trace()
