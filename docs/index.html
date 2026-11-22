@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Explore how an audit rule changes prices, seller cash, and market participation in a simulated market.">
+  <title>Watchdog Lab · Market Simulator</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./market.js" defer></script>
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <header class="top"><div class="shell brand"><span class="mark" aria-hidden="true">◈</span><strong>Watchdog Lab</strong><span class="tag">Market simulation</span></div></header>
+  <main class="shell">
+    <section class="intro">
+      <div><h1>Market simulator</h1><p>Set seller prices, choose an audit rule, and see how a flag can become a suspension or a permanent exit.</p></div>
+      <div class="presets"><label for="preset">Scenario</label><select id="preset"><option value="">Custom setup</option><option value="mean" selected>Mean benchmark</option><option value="median">Median comparison</option><option value="cap">Fixed cap comparison</option><option value="nash">Competitive pricing</option></select></div>
+    </section>
+    <div class="layout">
+      <aside class="panel config">
+        <h2>Market setup</h2>
+        <form id="setup">
+          <label>Audit rule<select name="rule"><option value="mean">Mean ratio</option><option value="median">Median ratio</option><option value="cap">Fixed price cap</option><option value="none">No regulation</option></select></label>
+          <div class="pair"><label id="param-label"><span id="param-text">Markup (%)</span><input name="param" type="number" min="0" max="100" value="10" step="any" required></label><label>Sellers<input name="count" type="number" min="2" max="6" value="4" required></label></div>
+          <div class="pair"><label>Audit budget<input name="budget" type="number" min="0" max="6" value="1" required></label><label>Min. active<input name="minimum" type="number" min="1" max="6" value="3" required></label></div>
+          <div class="pair"><label>Ban periods<input name="duration" type="number" min="1" max="30" value="4" required></label><label>Initial cash<input name="capital" type="number" min="0.001" max="100" step="any" value="0.15" required></label></div>
+          <div class="pair"><label>Fixed cost<input name="overhead" type="number" min="0.001" max="10" step="any" value="0.05" required></label><label>Random seed<input name="seed" type="number" min="0" max="4294967295" value="42" required></label></div>
+          <label class="check"><input name="capped" type="checkbox" checked> Cap cash at initial reserves</label>
+          <details><summary>Demand assumptions</summary><div class="pair"><label>Quality<input name="quality" type="number" min="-10" max="10" step="any" value="2" required></label><label>Demand scale<input name="scale" type="number" min="0.01" max="10" step="any" value="0.25" required></label></div><div class="pair"><label>Outside option<input name="outside" type="number" min="-10" max="10" step="any" value="0" required></label><label>Buyer volume<input name="buyers" type="number" min="0.01" max="10000" step="any" value="1" required></label></div><p>All sellers have zero marginal cost and the same quality.</p></details>
+          <button class="secondary reset" type="submit">Reset with setup</button><p id="setup-message" class="muted" aria-live="polite"></p>
+        </form>
+      </aside>
+      <div class="results">
+        <section class="controls" aria-label="Simulation controls"><div class="clock"><small>PERIOD</small><strong id="period">0</strong></div><div class="buttons"><button class="primary" id="step">Step once</button><button class="secondary" id="run">Run 25 periods</button><button class="secondary" id="download" disabled>Export CSV</button></div></section>
+        <div class="metrics" aria-label="Summary metrics">
+          <div class="metric"><span>Active sellers</span><strong id="active">—</strong><small>Available next period</small></div>
+          <div class="metric"><span>New bans</span><strong id="bans">0</strong><small>Cumulative</small></div>
+          <div class="metric"><span>Bankruptcies</span><strong id="exits">0</strong><small>Permanent exits</small></div>
+          <div class="metric"><span>Attributed bans</span><strong id="ratio">—</strong><small id="ratio-info">No bans yet</small></div>
+        </div>
+        <section class="panel seller-panel"><div class="section-head"><div><h2>Seller decisions</h2><p>Choose the price each seller will post while active.</p></div><span class="pill" id="benchmark"></span></div>
+          <div class="table-scroll"><table><thead><tr><th scope="col">Seller</th><th scope="col">Policy</th><th scope="col">Manual price</th><th scope="col">Cash</th><th scope="col">Next period</th></tr></thead><tbody id="sellers"></tbody></table></div>
+        </section>
+        <section class="panel"><div class="section-head chart-head"><div><h2>Market timeline</h2><p id="chart-note">Step the market to start tracking prices.</p></div><div class="tabs" role="group" aria-label="Timeline measure"><button data-metric="prices" aria-pressed="true">Prices</button><button data-metric="cash" aria-pressed="false">Cash</button></div></div><div class="chart-wrap"><canvas id="chart" role="img" aria-label="Time series of selected measure by seller. Data is available in the CSV export."></canvas></div><div id="legend" class="legend"></div></section>
+        <section class="panel"><div class="section-head"><div><h2>Period inspector</h2><p id="inspect-summary" aria-live="polite">Run a period to inspect prices, flags, and sanctions.</p></div><label for="inspect" class="visually-hidden">Inspect period</label><select id="inspect" disabled><option>No periods yet</option></select></div><div class="table-scroll"><table><thead><tr><th scope="col">Seller</th><th scope="col">Price</th><th scope="col">Buyer share</th><th scope="col">Profit</th><th scope="col">Audit result</th><th scope="col">Cash after</th></tr></thead><tbody id="events"><tr><td colspan="6">No period data yet.</td></tr></tbody></table></div></section>
+      </div>
+    </div>
+    <footer>This browser demo uses the project’s logit demand, uniform audits, and cash dynamics. Its short runs with configurable policies illustrate the mechanism. Research training and evaluation use the repository’s Python and C++ tools.</footer>
+  </main>
+</body>
+</html>
