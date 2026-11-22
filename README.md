@@ -13,7 +13,7 @@ Automated regulatory mechanisms ("watchdogs") are commonly deployed in online pl
 
 This project investigates under what market conditions, regulatory architectures, and agent traits this predatory framing behavior emerges, using decentralized tabular Q-learning.
 
-**Paper:** [`paper/main.tex`](paper/main.tex) (arXiv template). **Detailed write-up:** [`docs/extended_report.md`](docs/extended_report.md). **Proposal:** [`docs/proposal.pdf`](docs/proposal.pdf).
+**Paper:** [`paper/main.tex`](paper/main.tex) (arXiv template). **Detailed write-up:** [`report/extended_report.md`](report/extended_report.md). **Proposal:** [`report/proposal.pdf`](report/proposal.pdf).
 
 ---
 
@@ -200,7 +200,7 @@ where $\mathbf{p}_t^{(i \to N)} = (p_{1,t}, \dots, p_{i-1,t}, p_i^N, p_{i+1,t}, 
 | Phase diagram over K0/Φ × T_ban (`run_study.py h2`) | Done at 300M steps (`results/long_300M/`). |
 | EMA and escrow defences | Done against learners (`experiments/run_defences.py`, `experiments/run_escrow_cap.py`). |
 | Deep RL | Single DQN seller (N = 3, 8, 10) and two DQN sellers (N = 3, 5, 8) done. Markets where every seller is a deep learner need the vectorised GPU code on branch `gpu-vectorized` (see `GPU_SETUP.md` there). |
-| Extension A (learning regulator), Extension B (demand shock), DQN ablation, tournament | Implemented early, but only run before the fix to the learning dynamics, so **not** current results. Removed from the tree; they remain in the git history. |
+| Extension A (learning regulator), Extension B (demand shock), DQN ablation, tournament | Implemented early, but only run before the fix to the learning dynamics, so **not** current results. Kept in [`archive/`](archive/README.md). |
 
 ---
 
@@ -225,8 +225,9 @@ WeaponzingWatchdog/
 ├── pyproject.toml             # Package metadata (pip install -e .)
 ├── requirements.txt
 ├── paper/                     # Submitted report (main.tex), extended version, bibliography, figures/
-├── docs/
-│   ├── proposal.pdf           # Project idea review proposal
+├── report/
+│   ├── proposal.pdf           # Project idea review (ideation) proposal
+│   ├── final_report.pdf       # Final report, compiled from paper/main.tex
 │   ├── extended_report.md     # Detailed record of every study, with corrections
 │   └── figures/               # Figures embedded in the extended report
 ├── src/
@@ -238,11 +239,13 @@ WeaponzingWatchdog/
 ├── experiments/               # One script per study in the paper (see the reproduction table)
 ├── scripts/                   # Build the engine, make figures, statistics, run_study.sh for other machines
 ├── results/                   # Every CSV and run log behind the paper's tables and figures
-└── tests/                     # Unit and regression tests (incl. C++ vs Python equivalence)
+├── tests/                     # Unit and regression tests (incl. C++ vs Python equivalence)
+└── archive/                   # Superseded early code and plots; not maintained, not used as evidence
 ```
 
 Superseded proposal-era code (Extensions A/B, the DQN ablation, the tournament, the dashboard,
-early sweep scripts and plots) was removed from the tree; it is available in the git history.
+early sweep scripts and plots) is kept in `archive/` for the record; see `archive/README.md`.
+Nothing there produces a result in the report.
 
 ---
 

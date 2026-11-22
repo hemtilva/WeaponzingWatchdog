@@ -37,9 +37,6 @@ output/
 data/
 
 
-# Smoke-test outputs
-plots/*_quick.png
-plots/*_legacyreset.png
 
 # AI coding-assistant files (not part of the project)
 .agents/
@@ -63,6 +60,5 @@ GEMINI.md
 # Run logs under results/ document how each result was produced: keep them
 !results/**/*.log
 
-# Local-only archive of superseded code/plots (in git history), and plot output folder
-archive/
-plots/
+# Local plot output of experiments/run_study.py (root only; archive/plots/ is tracked)
+/plots/

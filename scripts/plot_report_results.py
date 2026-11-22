@@ -7,7 +7,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "docs" / "figures"  # figures embedded in docs/extended_report.md
+OUT = ROOT / "report" / "figures"  # figures embedded in report/extended_report.md
 OUT.mkdir(parents=True, exist_ok=True)
 original = pd.read_csv(ROOT / "results/Krishs-MacBook-Air/all/study_single.csv")
 replication = pd.read_csv(ROOT / "results/report_replication/single_learner.csv")
