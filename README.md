@@ -250,7 +250,7 @@ WeaponzingWatchdog/
 ├── paper/                     # Submitted report (main.tex), extended version, bibliography, figures/
 ├── report/
 │   ├── proposal.pdf           # Project idea review (ideation) proposal
-│   ├── final_report.pdf       # Final report, compiled from paper/main.tex
+│   ├── Weaponzing_Watchdog.pdf # Final report, compiled from paper/main.tex
 │   ├── extended_report.md     # Detailed record of every study, with corrections
 │   └── figures/               # Figures embedded in the extended report
 ├── src/
