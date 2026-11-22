@@ -349,6 +349,8 @@ Every experiment should start from a market where weaponization is possible at a
 | Two deep learners among Nash sellers | `python experiments/run_dqn_multi.py --num-firms N --tag full` for N = 3, 5, 8 | `results/dqn_multi/` |
 | Price cap with escrow | `python experiments/run_escrow_cap.py all` and `single` | `results/defences/escrow_cap_*.csv` |
 | Attack trace (paper Figure 1a) | `python experiments/trace_single_learner.py` | `results/single_trace/trace.csv` |
+| Two learners cooperate, then fight (paper Figure 2a) | `python experiments/trace_two_learners.py` | `results/two_trace/trace.csv`, `results/two_trace/probe.csv` |
+| Ethics at μ = 3, 10 and the omniscient planner (cap at 1.1 × Nash) | `python experiments/run_final_checks.py` | `results/final_checks/` |
 | Confidence intervals and tests | `python scripts/stats_report.py` | `results/stats/key_comparisons.csv` |
 | All figures | `python scripts/make_paper_figures.py` | `paper/figures/` |
 | C++ vs Python speed-up (~930×) | `python scripts/benchmark_backends.py` | printed |
