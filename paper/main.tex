@@ -141,7 +141,7 @@ R_{i,t}=U_{\alpha_i}\big(\pi_{i,t}^+/Q+\varepsilon\big)-U_{\alpha_i}(\varepsilon
 \end{equation}
 with CRRA utility $U_\alpha$, $\varepsilon=0.01$, and $\Charm(i,t)$ the number of audited rivals that are flagged but would not have been had $i$ priced at Nash. The anchor $-U_\alpha(\varepsilon)$ makes a zero-profit period worth zero; with all traits zero the reward is operating profit.
 
-\subsection{Evaluation Quantities}
+\subsection{Evaluation Quantities}\label{sec:eval}
 \begin{itemize}
 \item \textbf{Weaponization rate $W$:} the share of fresh bans that a rival's price caused, in the one-period sense that the flag disappears if that rival priced at Nash. Before using it on learners we validated it on a scripted attacker against Nash rivals: $W\ge0.8$ under the mean rule, $W=0$ under the median rule and the cap, every attributed bankruptcy credited to the attacker and none to honest sellers.
 \item \textbf{Attributed bankruptcies:} bankruptcies during a ban whose flag the one-period test above credits to a rival (alone or jointly). They are computed in every evaluation episode, so the large sweeps (Figures~\ref{fig:attack}b, \ref{fig:sensitivity}--\ref{fig:traits}) report them; the replay below is costlier and is run on the key comparisons, where it finds \emph{more} framing (Table~\ref{tab:replay}), so attributed bankruptcies are a conservative count.
@@ -183,7 +183,7 @@ with CRRA utility $U_\alpha$, $\varepsilon=0.01$, and $\Charm(i,t)$ the number o
 \end{proposition}
 With $L=0.15$, $H=0.30$, $t^\ast$ is 4, 16 and 79 periods for $\beta=0.80, 0.95, 0.99$.
 
-\paragraph{Experimental design.} Baseline market: $N=3$, $M=11$ prices on $[0,1.5]$, $a_i=2$, $a_0=0$, $c_i=0$, $\sigma=0.25$, $\Phi=0.05$, $K_0=0.15$, $\Tban=4$ (one ban is lethal), $\delta=0.10$, $\Nmin=2$; the grid Nash price is $0.30$ with profit $0.100$. Single learners train for $2\times10^6$ steps, all-learner markets for $3\times10^8$ (up to $10^9$), with 10--20 seeds per condition. Key comparisons report 95\% bootstrap intervals and permutation tests with Holm's correction ($p_{\mathrm H}$) across 36 comparisons. A second family of 28 comparisons covers Section~\ref{sec:more}. Changes from the proposal: $\Nmin=3\to2$ (otherwise the first exit switches the watchdog off) and the DP solver was replaced. Extensions A (learning regulator) and B (demand shocks) were implemented early but not rerun after the fixes to the learning dynamics (Section~\ref{sec:disc}), so we do not report them; their code is kept in the repository's \texttt{archive/}.
+\paragraph{Experimental design.} Baseline market: $N=3$, $M=11$ prices on $[0,1.5]$, $a_i=2$, $a_0=0$, $c_i=0$, $\sigma=0.25$, $\Phi=0.05$, $K_0=0.15$, $\Tban=4$ (one ban is lethal), $\delta=0.10$, $\Nmin=2$; the grid Nash price is $0.30$ with profit $0.100$. Single learners train for $2\times10^6$ steps, all-learner markets for $3\times10^8$ (up to $10^9$), with 10--20 seeds per condition. Key comparisons report 95\% bootstrap intervals and permutation tests with Holm's correction ($p_{\mathrm H}$) across 36 comparisons. A second family of 28 comparisons covers Section~\ref{sec:more}. Changes from the proposal: the DP solver was replaced, and Extensions A (learning regulator) and B (demand shocks) were implemented early but not rerun after the fixes to the learning dynamics (Section~\ref{sec:disc}), so we do not report them; their code is kept in the repository's \texttt{archive/}. \textbf{Response to the idea-review feedback.} (1) Visited states are reported: exploration saturates by $10^8$ steps (Section~\ref{sec:all}). (2) $W$ was validated on a scripted attacker before use on learners (Section~\ref{sec:eval}). (3) With $N=3$ and $\Nmin=3$ the rule stops after one ban; we lowered $\Nmin$ to 2, which keeps the watchdog active at every $N$, and checked $N=4$: with $\Nmin=2$ (7-price grid, $K_0=0.12$) the mean rule causes $1.54$ attributed bankruptcies per episode against $0.19$ under the median ($p_{\mathrm H}=0.010$), and a single learner frames $2.34$ of 3 rivals against none; with the proposal's $\Nmin=3$, $0.55$ against $0.18$ (Section~\ref{sec:all}).
 
 %% ===================================================================
 \section{Results}
@@ -246,7 +246,7 @@ $N$ & Honest bankrupted & Duel & Survivors & Profit / learner (Nash) & Caused jo
 
 Two independent deep learners first undercut together and bankrupt almost all honest sellers in every seed, many of these kills being avoided in the replay only if \emph{both} learners price honestly; then they frame each other until one monopolist remains, in 29 of 30 seeds, with the winner varying across episodes (Table~\ref{tab:two}, Figure~\ref{fig:two}). The median rule protects the honest sellers whenever the two learners are a minority ($N=5,8$); at $N=3$ they are a majority, fall outside Proposition~\ref{prop:vuln}(ii), and framed in one seed of ten.
 
-\subsection{When all sellers learn, framing is causal and favours the mean rule (H1)}
+\subsection{When all sellers learn, framing is causal and favours the mean rule (H1)}\label{sec:all}
 
 
 \begin{table}[t]
