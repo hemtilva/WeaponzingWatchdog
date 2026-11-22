@@ -236,7 +236,14 @@ $N$ & Honest bankrupted & Duel & Survivors & Profit / learner (Nash) & Caused jo
 \end{tabular}
 \end{table}
 
-Two independent deep learners first undercut together and bankrupt almost all honest sellers in every seed, many of these kills being avoided in the replay only if \emph{both} learners price honestly; then they frame each other until one monopolist remains, in 29 of 30 seeds, with the winner varying across episodes (Table~\ref{tab:two}). The median rule protects the honest sellers whenever the two learners are a minority ($N=5,8$); at $N=3$ they are a majority, fall outside Proposition~\ref{prop:vuln}(ii), and framed in one seed of ten.
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/two_attack.pdf}
+\caption{Two learners: cooperate, then fight. (a) A frozen-policy episode with two tabular Q-learners and two Nash sellers ($N=4$, mean rule, $10^8$ steps): both learners undercut together (periods 0--5) until both honest sellers are banned (circles) and bankrupt ($\times$); then learner~B holds its low price, learner~A is framed, and B charges 1.50 alone. All 10 seeds end with about one survivor. (b) Two DQN learners among $N-2$ Nash sellers (10 seeds; dotted: all sellers): under the mean rule about one seller survives at every $N$.}
+\label{fig:two}
+\end{figure}
+
+Two independent deep learners first undercut together and bankrupt almost all honest sellers in every seed, many of these kills being avoided in the replay only if \emph{both} learners price honestly; then they frame each other until one monopolist remains, in 29 of 30 seeds, with the winner varying across episodes (Table~\ref{tab:two}, Figure~\ref{fig:two}). The median rule protects the honest sellers whenever the two learners are a minority ($N=5,8$); at $N=3$ they are a majority, fall outside Proposition~\ref{prop:vuln}(ii), and framed in one seed of ten.
 
 \subsection{When all sellers learn, framing is causal and favours the mean rule (H1)}
 
